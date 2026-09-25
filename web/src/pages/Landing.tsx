@@ -35,7 +35,6 @@ export function Landing() {
 
       <section className="hero">
         <div className="hero__copy">
-          <p className="eyebrow">Huawei ICT Competition 2026 · Innovation Track</p>
           <h1>Your transcript already says what you can do. <span className="hero__accent">We'll show you the path forward.</span></h1>
           <p className="hero__lead">Four years of subjects shouldn't end in a blank resume. PathForward reads the subjects you passed and their learning outcomes, turns them into competencies employers recognise, and shows you exactly where you stand: the roles you already fit, the gaps worth closing, and a resume you can defend in any interview.</p>
           <div className="row">
