@@ -57,7 +57,7 @@ function Protected() {
   return (
     <div className="shell">
       <aside className="side">
-        <NavLink to="/app" className="brand"><span className="brand__mark">AI</span><span>Resume</span></NavLink>
+        <NavLink to="/app" className="brand"><span className="brand__mark" aria-hidden><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4 18c4 0 6-3 8-6s4-6 8-6" /><path d="M15 6h5v5" /></svg></span><span>Path<b className="brand__accent">Forward</b></span></NavLink>
         <nav className="side__nav">
           {NAV.map(n => <NavLink key={n.to} to={n.to} end={n.end} className="navlink"><n.icon size={18} /><span>{n.label}</span></NavLink>)}
           {user.role === 'admin' && <NavLink to="/app/admin" className="navlink"><ShieldCheck size={18} /><span>Admin</span></NavLink>}
