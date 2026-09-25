@@ -1,0 +1,2 @@
+{ "name": "PathForward", "short_name": "PathForward", "start_url": "/app", "display": "standalone", "background_color": "#FFFFFF", "theme_color": "#F5B800",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }] }
