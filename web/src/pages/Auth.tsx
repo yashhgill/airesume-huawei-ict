@@ -25,7 +25,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   return (
     <div className="auth">
       <form className="auth__card" onSubmit={submit}>
-        <Link to="/" className="brand"><span className="brand__mark">AI</span><span>Resume</span></Link>
+        <Link to="/" className="brand"><span className="brand__mark" aria-hidden><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4 18c4 0 6-3 8-6s4-6 8-6" /><path d="M15 6h5v5" /></svg></span><span>Path<b className="brand__accent">Forward</b></span></Link>
         <h1>{mode === 'login' ? 'Welcome back' : 'Create your account'}</h1>
         <p className="muted">{mode === 'login' ? 'Sign in to your competency map and resumes.' : 'It takes two minutes to map your subjects to skills.'}</p>
         {mode === 'register' && <Field label="Full name"><input value={name} onChange={e => setName(e.target.value)} autoComplete="name" required /></Field>}

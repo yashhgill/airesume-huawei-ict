@@ -7,7 +7,7 @@ const FLOW = [
   { k: 'Learning outcome', v: 'Provision virtual machines and storage in a public cloud', n: 'CLO2' },
   { k: 'Programme outcome', v: 'PLO3 · Practical skills', n: 'MQA domain' },
   { k: 'Skill', v: 'Huawei Cloud ECS · Virtualisation', n: 'level 3 / 5' },
-  { k: 'Job match', v: 'Junior Cloud Engineer', n: '82% fit' },
+  { k: 'Your next step', v: 'Junior Cloud Engineer', n: '82% fit' },
 ];
 
 const FEATURES = [
@@ -24,7 +24,7 @@ export function Landing() {
   return (
     <div className="landing">
       <header className="landing__nav">
-        <Link to="/" className="brand"><span className="brand__mark">AI</span><span>Resume</span></Link>
+        <Link to="/" className="brand"><span className="brand__mark" aria-hidden><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4 18c4 0 6-3 8-6s4-6 8-6" /><path d="M15 6h5v5" /></svg></span><span>Path<b className="brand__accent">Forward</b></span></Link>
         <div className="row">
           {user ? <Link className="btn btn--primary" to="/app">Open dashboard <ArrowRight size={16} /></Link> : <>
             <Link className="btn btn--ghost" to="/login">Sign in</Link>
@@ -36,8 +36,8 @@ export function Landing() {
       <section className="hero">
         <div className="hero__copy">
           <p className="eyebrow">Huawei ICT Competition 2026 · Innovation Track</p>
-          <h1>Your transcript already says what you can do.</h1>
-          <p className="hero__lead">AI Resume reads your subjects and their learning outcomes, maps them to the competencies employers hire for, and turns that evidence into resumes and job matches you can defend in an interview.</p>
+          <h1>Your transcript already says what you can do. <span className="hero__accent">We'll show you the path forward.</span></h1>
+          <p className="hero__lead">Four years of subjects shouldn't end in a blank resume. PathForward reads the subjects you passed and their learning outcomes, turns them into competencies employers recognise, and shows you exactly where you stand: the roles you already fit, the gaps worth closing, and a resume you can defend in any interview.</p>
           <div className="row">
             <Link className="btn btn--primary btn--lg" to={user ? '/app' : '/register'}>Build my competency map <ArrowRight size={18} /></Link>
             <a className="btn btn--ghost btn--lg" href="#how">How it works</a>
@@ -65,7 +65,7 @@ export function Landing() {
       </section>
 
 
-      <footer className="landing__foot">UTeM · FTMK · AI Resume prototype. Your data stays in your account; the AI only rewrites facts you give it.</footer>
+      <footer className="landing__foot">PathForward · UTeM FTMK prototype. Your data stays in your account; the AI only rewrites facts you give it.</footer>
     </div>
   );
 }
