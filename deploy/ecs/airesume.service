@@ -1,0 +1,19 @@
+[Unit]
+Description=AI Resume (Hono + SQLite)
+After=network.target
+
+[Service]
+Type=simple
+User=airesume
+WorkingDirectory=/opt/airesume
+EnvironmentFile=/opt/airesume/.env
+Environment=NODE_ENV=production HOST=127.0.0.1 APP_RUNTIME=huawei-ecs
+ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning dist-server/server.mjs
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=full
+ReadWritePaths=/opt/airesume/data
+
+[Install]
+WantedBy=multi-user.target
