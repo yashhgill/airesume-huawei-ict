@@ -64,7 +64,7 @@ async function jsearch(q: string, location: string, key: string): Promise<Job[]>
 export async function searchJobs(env: Env, q: string, location: string) {
   const key = `${q}|${location}`.toLowerCase();
   const hit = cache.get(key);
-  if (hit && Date.now() - hit.at < TTL) return { jobs: hit.jobs, sources: [], cached: true };
+  if (hit && Date.now() - hit.at < TTL) return { jobs: hit.jobs, sources: [], cached: true, localSource: !!env.RAPIDAPI_KEY };
 
   const tasks: [string, Promise<Job[]>][] = [
     ['Remotive', remotive(q)],
@@ -73,14 +73,25 @@ export async function searchJobs(env: Env, q: string, location: string) {
   if (env.RAPIDAPI_KEY) tasks.unshift(['JSearch', jsearch(q, location, env.RAPIDAPI_KEY)]);
 
   const settled = await Promise.allSettled(tasks.map(t => t[1]));
+  const loc = location.trim().toLowerCase();
+  const inMalaysia = !loc || /malaysia|kuala lumpur|selangor|penang|johor|melaka|malacca|cyberjaya|putrajaya/.test(loc);
+  // Free sources are global. Keep only jobs a Malaysian candidate can actually take:
+  // JSearch results (already location-filtered), Malaysian postings, or remote roles open to Asia/worldwide.
+  const openToMy = (j: Job) => {
+    if (j.source.startsWith('JSearch')) return true;
+    const l = j.location.toLowerCase();
+    if (inMalaysia && /malaysia|kuala lumpur|selangor|penang|johor|melaka|cyberjaya/.test(l)) return true;
+    if (!inMalaysia && loc && l.includes(loc)) return true;
+    return j.remote && /worldwide|anywhere|global|asia|apac|malaysia|remote$|^remote/.test(l || 'remote');
+  };
   const sources = tasks.map(([name], i) => ({ name, ok: settled[i].status === 'fulfilled', count: settled[i].status === 'fulfilled' ? (settled[i] as PromiseFulfilledResult<Job[]>).value.length : 0 }));
   const seen = new Set<string>();
-  const jobs = settled.flatMap(s => (s.status === 'fulfilled' ? s.value : [])).filter(j => {
+  const jobs = settled.flatMap(s => (s.status === 'fulfilled' ? s.value : [])).filter(openToMy).filter(j => {
     const k = `${j.title}|${j.company}`.toLowerCase();
     if (seen.has(k)) return false;
     seen.add(k);
     return true;
   });
   if (jobs.length) cache.set(key, { at: Date.now(), jobs });
-  return { jobs, sources, cached: false };
+  return { jobs, sources, cached: false, localSource: !!env.RAPIDAPI_KEY };
 }
