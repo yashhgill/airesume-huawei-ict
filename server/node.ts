@@ -38,4 +38,4 @@ if (existsSync(dist)) {
 }
 
 const port = Number(process.env.PORT ?? 8787);
-serve({ fetch: server.fetch, port, hostname: process.env.HOST ?? '0.0.0.0' }, i => console.log(`AI Resume API on http://localhost:${i.port} (${env.APP_RUNTIME})`));
+serve({ fetch: server.fetch, port, hostname: process.env.HOST ?? '0.0.0.0' }, i => console.log(`PathForward API on http://localhost:${i.port} (${env.APP_RUNTIME})`));
