@@ -28,7 +28,7 @@ export function Landing() {
         <div className="row">
           {user ? <Link className="btn btn--primary" to="/app">Open dashboard <ArrowRight size={16} /></Link> : <>
             <Link className="btn btn--ghost" to="/login">Sign in</Link>
-            <Link className="btn btn--primary" to="/register">Create free account</Link>
+            <Link className="btn btn--primary" to="/register">Get started</Link>
           </>}
         </div>
       </header>
