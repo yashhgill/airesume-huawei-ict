@@ -64,13 +64,6 @@ export function Landing() {
         ))}
       </section>
 
-      <section className="stack-note">
-        <div>
-          <p className="eyebrow">Built for the cloud</p>
-          <h2>Runs on the edge today, on Huawei Cloud ECS for submission.</h2>
-        </div>
-        <p>The same API code runs on Cloudflare Workers with D1 and on a Huawei Cloud ECS with SQLite. AI features use Groq-hosted open models through an OpenAI-compatible gateway, so the model can be swapped for Huawei ModelArts without changing the app.</p>
-      </section>
 
       <footer className="landing__foot">UTeM · FTMK · AI Resume prototype. Your data stays in your account; the AI only rewrites facts you give it.</footer>
     </div>
