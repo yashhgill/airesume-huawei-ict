@@ -32,7 +32,7 @@ Hono API  ── same code on both runtimes ────────────
    └─ Huawei Cloud ECS    + Node 22 + SQLite   ← competition submission│
         Nginx reverse proxy, systemd service, Cloudflare DNS in front  │
    │                                                                  │
-   ├─ Groq (OpenAI-compatible) · llama-3.3-70b  ← all AI tasks        │
+   ├─ Groq (OpenAI-compatible) · gpt-oss-120b  ← all AI tasks        │
    └─ Remotive · Arbeitnow · JSearch            ← live job data       │
 ```
 

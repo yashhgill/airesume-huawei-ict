@@ -18,7 +18,7 @@ migrations_dir = "migrations"
 
 [vars]
 APP_RUNTIME = "cloudflare"
-GROQ_MODEL = "llama-3.3-70b-versatile"
+GROQ_MODEL = "openai/gpt-oss-120b"
 
 [observability]
 enabled = true
