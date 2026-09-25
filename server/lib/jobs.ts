@@ -20,7 +20,7 @@ async function getJson(url: string, init?: RequestInit, ms = 8000) {
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), ms);
   try {
-    const r = await fetch(url, { ...init, signal: ctl.signal, headers: { 'user-agent': 'AIResume/1.0 (student project)', ...(init?.headers ?? {}) } });
+    const r = await fetch(url, { ...init, signal: ctl.signal, headers: { 'user-agent': 'PathForward/1.0 (student project)', ...(init?.headers ?? {}) } });
     if (!r.ok) throw new Error(`${r.status}`);
     return await r.json();
   } finally { clearTimeout(t); }
