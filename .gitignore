@@ -1,0 +1,14 @@
+# Secrets: never commit
+.env
+.env.*
+!.env.example
+.dev.vars
+
+# Build / runtime
+node_modules/
+dist/
+dist-server/
+data/
+.wrangler/
+*.log
+.DS_Store

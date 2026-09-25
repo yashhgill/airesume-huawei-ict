@@ -1,0 +1,24 @@
+# Cloudflare Workers config. `database_id` is filled in automatically by the
+# GitHub Actions deploy workflow (it creates the D1 database on first run).
+name = "airesume"
+main = "server/worker.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "airesume"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+[vars]
+APP_RUNTIME = "cloudflare"
+GROQ_MODEL = "llama-3.3-70b-versatile"
+
+[observability]
+enabled = true
