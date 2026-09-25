@@ -22,7 +22,7 @@ export default function App() {
       <Route path="/login" element={<AuthPage mode="login" />} />
       <Route path="/register" element={<AuthPage mode="register" />} />
       <Route path="/app" element={<Protected />}>
-        <Route index element={<Dashboard />} />
+        <Route index element={<Home />} />
         <Route path="start" element={<Onboarding />} />
         <Route path="profile" element={<ProfilePage />} />
         <Route path="competency" element={<CompetencyPage />} />
@@ -54,13 +54,15 @@ function Protected() {
   const { user, logout } = useAuth();
   const nav = useNavigate();
   if (!user) return <Navigate to="/login" replace />;
+  const isAdmin = user.role === 'admin';
   return (
     <div className="shell">
       <aside className="side">
         <NavLink to="/app" className="brand"><span className="brand__mark" aria-hidden><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4 18c4 0 6-3 8-6s4-6 8-6" /><path d="M15 6h5v5" /></svg></span><span>Path<b className="brand__accent">Forward</b></span></NavLink>
         <nav className="side__nav">
-          {NAV.map(n => <NavLink key={n.to} to={n.to} end={n.end} className="navlink"><n.icon size={18} /><span>{n.label}</span></NavLink>)}
-          {user.role === 'admin' && <NavLink to="/app/admin" className="navlink"><ShieldCheck size={18} /><span>Admin</span></NavLink>}
+          {isAdmin
+            ? <NavLink to="/app/admin" className="navlink"><ShieldCheck size={18} /><span>Admin console</span></NavLink>
+            : NAV.map(n => <NavLink key={n.to} to={n.to} end={n.end} className="navlink"><n.icon size={18} /><span>{n.label}</span></NavLink>)}
         </nav>
         <div className="side__foot">
           <div className="side__user"><span className="avatar">{user.name.slice(0, 1).toUpperCase()}</span><div><b>{user.name}</b><span>{user.email}</span></div></div>
@@ -69,9 +71,15 @@ function Protected() {
       </aside>
       <main className="main"><Outlet /></main>
       <nav className="tabbar" aria-label="Sections">
-        {NAV.slice(0, 5).map(n => <NavLink key={n.to} to={n.to} end={n.end}><n.icon size={20} /><span>{n.label.split(' ')[0]}</span></NavLink>)}
-        <NavLink to="/app/jobs"><BriefcaseBusiness size={20} /><span>Jobs</span></NavLink>
+        {!isAdmin && NAV.slice(0, 5).map(n => <NavLink key={n.to} to={n.to} end={n.end}><n.icon size={20} /><span>{n.label.split(' ')[0]}</span></NavLink>)}
+        {isAdmin ? <NavLink to="/app/admin"><ShieldCheck size={20} /><span>Admin</span></NavLink> : <NavLink to="/app/jobs"><BriefcaseBusiness size={20} /><span>Jobs</span></NavLink>}
       </nav>
     </div>
   );
+}
+
+/** Admins land on the console; students on their dashboard. */
+function Home() {
+  const { user } = useAuth();
+  return user?.role === 'admin' ? <Navigate to="/app/admin" replace /> : <Dashboard />;
 }
