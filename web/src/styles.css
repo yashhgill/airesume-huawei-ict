@@ -430,6 +430,18 @@ a.kpi:hover { border-color: var(--line-2); }
   .skill-list li { grid-template-columns: 1fr auto auto; }
   .skill-list li .tag { display: none; }
   .paper-wrap { margin: 0 -16px; padding: 0 16px 20px; }
+  .landing { padding: 14px 16px 32px; gap: 40px; grid-template-columns: minmax(0, 1fr); }
+  .landing > *, .hero > * { min-width: 0; }
+  .landing__nav .row { gap: 6px; flex-wrap: nowrap; }
+  .landing__nav .btn { padding: 8px 12px; font-size: 13px; white-space: nowrap; }
+  .landing__nav .brand { min-width: 0; font-size: 16px; gap: 6px; }
+  .landing__nav .btn--ghost { padding: 8px 10px; }
+  .brand__mark { flex-shrink: 0; }
+  .hero h1 { font-size: 34px; }
+  .hero .row .btn { flex: 1 1 100%; justify-content: center; }
+  input, select, textarea { font-size: 16px; }
+  .modal, .dialog { max-height: 100dvh; }
+  body { overflow-x: hidden; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 
