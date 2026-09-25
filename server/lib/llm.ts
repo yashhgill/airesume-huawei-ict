@@ -7,7 +7,7 @@ import type { Env } from './env';
 import { mockLlm } from './llm-mock';
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const DEFAULT_MODEL = 'llama-3.3-70b-versatile';
+const DEFAULT_MODEL = 'openai/gpt-oss-120b';
 
 export class LlmError extends Error {
   constructor(message: string, readonly status = 502) { super(message); }
@@ -29,7 +29,9 @@ export async function llmJson<T>(env: Env, call: LlmCall): Promise<T> {
   const body = {
     model: env.GROQ_MODEL || DEFAULT_MODEL,
     temperature: call.temperature ?? 0.4,
-    max_tokens: call.maxTokens ?? 2000,
+    max_tokens: Math.max(4000, (call.maxTokens ?? 2000) * 2),
+    // gpt-oss models reason before answering; keep it short so JSON fits the budget
+    ...(/gpt-oss/.test(env.GROQ_MODEL || DEFAULT_MODEL) ? { reasoning_effort: 'low' } : {}),
     response_format: { type: 'json_object' },
     messages: [
       { role: 'system', content: `${call.system}\n\nRespond with a single valid JSON object only.` },
