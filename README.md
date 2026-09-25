@@ -1,8 +1,10 @@
-# AI Resume · Competency to Career
+# PathForward · From transcript to career
+
+> *Your transcript already says what you can do. We'll show you the path forward.*
 
 **11th Huawei ICT Competition 2026 · Innovation Track (Topic 1: AI applications powered by Huawei Cloud) · UTeM FTMK**
 
-AI Resume turns what a student actually studied into evidence employers can trust. Students tick the subjects they completed; each subject's course learning outcomes (CLOs) map to the programme learning outcomes (PLOs, MQA domains) and to concrete skills. The AI then writes honest, ATS-friendly resumes from that record, checks them against real job ads, and ranks live job openings by fit.
+PathForward turns what a student actually studied into evidence employers can trust. Students tick the subjects they completed; each subject's course learning outcomes (CLOs) map to the programme learning outcomes (PLOs, MQA domains) and to concrete skills. The AI then writes honest, ATS-friendly resumes from that record, checks them against real job ads, and ranks live job openings by fit.
 
 ## Features
 
