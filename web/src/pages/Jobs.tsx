@@ -6,7 +6,7 @@ import type { Job } from '../lib/types';
 import { Card, Empty, Meter, Notice, PageHead, Spinner, Tag } from '../components/ui';
 import { GenerateModal } from './Resumes';
 
-interface SearchRes { jobs: Job[]; sources: { name: string; ok: boolean; count: number }[]; skills: number }
+interface SearchRes { jobs: Job[]; sources: { name: string; ok: boolean; count: number }[]; skills: number; localSource?: boolean }
 interface Fit { score: number; summary: string; matched: string[]; missing: string[]; advice: string[] }
 
 export function JobsPage() {
@@ -55,6 +55,7 @@ export function JobsPage() {
         {res && <span>· Sources: {res.sources.map(s => `${s.name} ${s.ok ? s.count : '✕'}`).join(', ')}</span>}
       </div>
       <Notice>{err}</Notice>
+      {res && !res.localSource && <Notice tone="info">Showing remote roles open to candidates in Malaysia. Local Malaysian listings need the JSearch source; until it is enabled, use the JobStreet, LinkedIn and Hiredly links above.</Notice>}
       {res && res.skills === 0 && <Notice tone="info">Add skills to your profile to get match scores. <Link to="/app/profile?tab=skills">Add skills</Link></Notice>}
 
       {busy === 'search' && <Spinner label="Searching job boards" />}
