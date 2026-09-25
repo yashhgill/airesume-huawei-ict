@@ -359,13 +359,13 @@ app.get('/jobs/search', async c => {
   if (!q) bad('Type a role or skill to search for.');
   const p = await loadProfile(c.env, c.get('user').id);
   const t = Date.now();
-  const { jobs, sources, cached } = await searchJobs(c.env, q, str(c.req.query('location'), 80));
+  const { jobs, sources, cached, localSource } = await searchJobs(c.env, q, str(c.req.query('location'), 80));
   const skills = p.skills.map(s => s.name);
   const ranked = jobs.map(j => ({ ...j, fit: quickMatch(skills, `${j.title} ${j.tags.join(' ')} ${j.description}`) }))
     .sort((a, b) => b.fit.score - a.fit.score)
     .map(j => ({ ...j, description: j.description.slice(0, 4000) }));
   await log(c, 'jobs.search', `${q} → ${jobs.length}`, true, t);
-  return c.json({ jobs: ranked.slice(0, 40), sources, cached, skills: skills.length });
+  return c.json({ jobs: ranked.slice(0, 40), sources, cached, localSource, skills: skills.length });
 });
 
 app.post('/jobs/fit', async c => {
