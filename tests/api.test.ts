@@ -157,9 +157,35 @@ test('learning plan, task progress and today view', async () => {
   assert.equal(t.body.journey.length, 5);
 });
 
+test('admin invites a recruiter who searches opted-in students and shortlists', async () => {
+  const admin = (await call('POST', '/auth/register', { name: 'Admin', email: 'admin@test.my', password: 'password123' }, '')).body.token;
+  const inv = await call('POST', '/admin/recruiters', { name: 'Rina HR', email: 'rina@acme.my', company: 'Acme Sdn Bhd' }, admin);
+  assert.equal(inv.status, 201);
+  assert.equal(inv.body.password.length, 12);
+  const login = await call('POST', '/auth/login', { email: 'rina@acme.my', password: inv.body.password }, '');
+  assert.equal(login.body.mustChangePassword, true);
+  const rec = login.body.token;
+  assert.equal((await call('PUT', '/me/password', { next: 'newpassword1' }, rec)).status, 200);
+  assert.equal((await call('GET', '/talent', undefined, token)).status, 403);           // students cannot search
+  assert.equal((await call('GET', '/talent?q=sql', undefined, rec)).body.length, 0);   // nobody shared yet
+  await call('PUT', '/me/sharing', { share: true });
+  const found = await call('GET', '/talent?q=sql', undefined, rec);
+  assert.equal(found.body.length, 1);
+  assert.equal(found.body[0].match, 100);
+  const sid = found.body[0].id;
+  const detail = await call('GET', `/talent/${sid}`, undefined, rec);
+  assert.ok(detail.body.plos.length > 0);
+  await call('PUT', `/talent/${sid}/shortlist`, { stage: 'contacted', note: 'Strong SQL', role: 'Cloud Support' }, rec);
+  const sl = await call('GET', '/talent/shortlist', undefined, rec);
+  assert.equal(sl.body[0].stage, 'contacted');
+  assert.equal((await call('GET', '/today')).body.views, 1);
+  await call('PUT', '/me/sharing', { share: false });
+  assert.equal((await call('GET', `/talent/${sid}`, undefined, rec)).status, 404);
+  assert.equal((await call('GET', '/admin/recruiters', undefined, admin)).body[0].email, 'rina@acme.my');
+});
+
 test('admin sees stats and can edit curriculum', async () => {
-  const r = await call('POST', '/auth/register', { name: 'Admin', email: 'admin@test.my', password: 'password123' }, '');
-  const admin = r.body.token;
+  const admin = (await call('POST', '/auth/login', { email: 'admin@test.my', password: 'password123' }, '')).body.token;
   const st = await call('GET', '/admin/stats', undefined, admin);
   assert.equal(st.status, 200);
   assert.ok(st.body.aiCalls >= 5);
