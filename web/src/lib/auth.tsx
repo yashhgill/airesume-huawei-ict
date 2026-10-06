@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { api, tokenStore } from './api';
 import type { User } from './types';
 
-interface Auth { user: User | null; ready: boolean; login: (email: string, password: string) => Promise<void>; register: (name: string, email: string, password: string) => Promise<void>; logout: () => void }
+interface Auth { user: User | null; ready: boolean; mustChange: boolean; clearMustChange: () => void; useToken: (t: string) => void; login: (email: string, password: string) => Promise<void>; register: (name: string, email: string, password: string) => Promise<void>; logout: () => void }
 const Ctx = createContext<Auth | null>(null);
 export const useAuth = () => useContext(Ctx)!;
 
@@ -19,8 +19,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(() => { const t = tokenStore.get(); return t ? decode(t) : null; });
   const logout = useCallback(() => { tokenStore.set(null); setUser(null); }, []);
   useEffect(() => { const f = () => setUser(null); window.addEventListener('auth:logout', f); return () => window.removeEventListener('auth:logout', f); }, []);
-  const done = (r: { token: string; user: User }) => { tokenStore.set(r.token); setUser(r.user); };
+  const [mustChange, setMustChange] = useState(() => { try { return localStorage.getItem('pf.mustChange') === '1'; } catch { return false; } });
+  const mc = (v: boolean) => { setMustChange(v); try { v ? localStorage.setItem('pf.mustChange', '1') : localStorage.removeItem('pf.mustChange'); } catch { /* ignore */ } };
+  const done = (r: { token: string; user: User; mustChangePassword?: boolean }) => { tokenStore.set(r.token); setUser(r.user); mc(!!r.mustChangePassword); };
+  const useToken = (t: string) => { tokenStore.set(t); setUser(decode(t)); };
   const login = async (email: string, password: string) => done(await api('/auth/login', { body: { email, password } }));
   const register = async (name: string, email: string, password: string) => done(await api('/auth/register', { body: { name, email, password } }));
-  return <Ctx.Provider value={{ user, ready: true, login, register, logout }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ user, ready: true, mustChange, clearMustChange: () => mc(false), useToken, login, register, logout }}>{children}</Ctx.Provider>;
 }
