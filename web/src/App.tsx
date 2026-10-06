@@ -1,8 +1,10 @@
 import { Navigate, NavLink, Outlet, Route, Routes, useNavigate } from 'react-router-dom';
-import { BriefcaseBusiness, ClipboardCheck, Compass, FileText, GraduationCap, Kanban, LogOut, MessageCircle, Mic, Route as RouteIcon, ShieldCheck, Sun, UserRound } from 'lucide-react';
+import { BriefcaseBusiness, ClipboardCheck, Compass, FileText, GraduationCap, Bookmark, Kanban, LogOut, Search, MessageCircle, Mic, Route as RouteIcon, ShieldCheck, Sun, UserRound } from 'lucide-react';
 import { useAuth } from './lib/auth';
 import { Landing } from './pages/Landing';
-import { AuthPage } from './pages/Auth';
+import { AuthPage, LinkedInDone, SetPassword } from './pages/Auth';
+import { CandidatePage, ShortlistPage, TalentPage } from './pages/Talent';
+import { ThemeToggle } from './components/ThemeToggle';
 import { Today } from './pages/Today';
 import { CoachPage } from './pages/Coach';
 import { InterviewPage } from './pages/Interview';
@@ -24,6 +26,7 @@ export default function App() {
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<AuthPage mode="login" />} />
       <Route path="/register" element={<AuthPage mode="register" />} />
+      <Route path="/auth/linkedin" element={<LinkedInDone />} />
       <Route path="/app" element={<Protected />}>
         <Route index element={<Home />} />
         <Route path="start" element={<Onboarding />} />
@@ -38,6 +41,9 @@ export default function App() {
         <Route path="coach" element={<CoachPage />} />
         <Route path="interview" element={<InterviewPage />} />
         <Route path="plan" element={<PlanPage />} />
+        <Route path="talent" element={<TalentPage />} />
+        <Route path="talent/:id" element={<CandidatePage />} />
+        <Route path="shortlist" element={<ShortlistPage />} />
         <Route path="admin" element={<AdminPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
@@ -73,23 +79,39 @@ const TABS = [
   { to: '/app/profile', label: 'Me', icon: UserRound },
 ];
 
+const RECRUITER = [
+  { to: '/app/talent', label: 'Find talent', icon: Search },
+  { to: '/app/shortlist', label: 'Shortlist', icon: Bookmark },
+];
+
 const Mark = () => <span className="brand__mark" aria-hidden><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4 18c4 0 6-3 8-6s4-6 8-6" /><path d="M15 6h5v5" /></svg></span>;
 export const Brand = ({ to = '/' }: { to?: string }) => <NavLink to={to} className="brand"><Mark /><span>PathForward</span></NavLink>;
 
 function Protected() {
-  const { user, logout } = useAuth();
+  const { user, logout, mustChange } = useAuth();
   const nav = useNavigate();
   if (!user) return <Navigate to="/login" replace />;
+  if (mustChange) return <SetPassword />;
   const isAdmin = user.role === 'admin';
+  const isRecruiter = user.role === 'recruiter';
+  const student = !isAdmin && !isRecruiter;
   const out = () => { logout(); nav('/'); };
   return (
     <div className="shell">
       <aside className="side">
         <Brand to="/app" />
         <nav className="side__nav">
-          {isAdmin
-            ? <NavLink to="/app/admin" className="navlink"><ShieldCheck size={18} /><span>Admin console</span></NavLink>
-            : GROUPS.map(g => (
+          {isAdmin && <>
+            <p className="side__group">Manage</p>
+            <NavLink to="/app/admin" className="navlink"><ShieldCheck size={18} /><span>Admin console</span></NavLink>
+            <p className="side__group">Recruiting</p>
+            {RECRUITER.map(n => <NavLink key={n.to} to={n.to} className="navlink"><n.icon size={18} /><span>{n.label}</span></NavLink>)}
+          </>}
+          {isRecruiter && <>
+            <p className="side__group">Recruiting</p>
+            {RECRUITER.map(n => <NavLink key={n.to} to={n.to} className="navlink"><n.icon size={18} /><span>{n.label}</span></NavLink>)}
+          </>}
+          {student && GROUPS.map(g => (
               <div key={g.label}>
                 <p className="side__group">{g.label}</p>
                 {g.items.map(n => <NavLink key={n.to} to={n.to} end={n.end} className="navlink"><n.icon size={18} /><span>{n.label}</span></NavLink>)}
@@ -97,22 +119,25 @@ function Protected() {
             ))}
         </nav>
         <div className="side__foot">
-          {!isAdmin && <NavLink to="/app/coach" className="side__coach"><b><MessageCircle size={16} /> Ask Path</b><span>Your coach knows your subjects, skills and plan.</span></NavLink>}
+          <ThemeToggle />
+          {student && <NavLink to="/app/coach" className="side__coach"><b><MessageCircle size={16} /> Ask Path</b><span>Your coach knows your subjects, skills and plan.</span></NavLink>}
           <div className="side__user"><span className="avatar">{user.name.slice(0, 1).toUpperCase()}</span><div><b>{user.name}</b><span>{user.email}</span></div><button className="icon-btn" onClick={out} aria-label="Sign out" title="Sign out"><LogOut size={17} /></button></div>
         </div>
       </aside>
       <header className="topbar">
         <Brand to="/app" />
         <div className="row">
-          {!isAdmin && <NavLink to="/app/resumes" className="icon-btn" aria-label="Resumes"><FileText size={19} /></NavLink>}
-          {!isAdmin && <NavLink to="/app/plan" className="icon-btn" aria-label="Learning plan"><RouteIcon size={19} /></NavLink>}
+          <ThemeToggle compact />
+          {student && <NavLink to="/app/resumes" className="icon-btn" aria-label="Resumes"><FileText size={19} /></NavLink>}
+          {student && <NavLink to="/app/plan" className="icon-btn" aria-label="Learning plan"><RouteIcon size={19} /></NavLink>}
           <button className="icon-btn" onClick={out} aria-label="Sign out"><LogOut size={19} /></button>
         </div>
       </header>
       <main className="main"><Outlet /></main>
       <nav className="tabbar" aria-label="Sections">
-        {isAdmin ? <NavLink to="/app/admin"><ShieldCheck size={20} /><span>Admin</span></NavLink>
-          : TABS.map(n => <NavLink key={n.to} to={n.to} end={n.end}><n.icon size={20} /><span>{n.label}</span></NavLink>)}
+        {isAdmin && <NavLink to="/app/admin"><ShieldCheck size={20} /><span>Admin</span></NavLink>}
+        {(isAdmin || isRecruiter) && RECRUITER.map(n => <NavLink key={n.to} to={n.to}><n.icon size={20} /><span>{n.label === 'Find talent' ? 'Talent' : n.label}</span></NavLink>)}
+        {student && TABS.map(n => <NavLink key={n.to} to={n.to} end={n.end}><n.icon size={20} /><span>{n.label}</span></NavLink>)}
       </nav>
     </div>
   );
@@ -121,5 +146,7 @@ function Protected() {
 /** Admins land on the console; students on their dashboard. */
 function Home() {
   const { user } = useAuth();
-  return user?.role === 'admin' ? <Navigate to="/app/admin" replace /> : <Today />;
+  if (user?.role === 'admin') return <Navigate to="/app/admin" replace />;
+  if (user?.role === 'recruiter') return <Navigate to="/app/talent" replace />;
+  return <Today />;
 }
