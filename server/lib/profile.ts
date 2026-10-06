@@ -1,7 +1,7 @@
 import type { Env } from './env';
 
 export interface Profile {
-  user: { id: string; name: string; email: string; phone: string | null; location: string | null; headline: string | null; linkedin: string | null; github: string | null; website: string | null; role: string };
+  user: { id: string; name: string; email: string; phone: string | null; location: string | null; headline: string | null; linkedin: string | null; github: string | null; website: string | null; role: string; share_profile: number; company: string | null; avatar_url: string | null; linkedin_connected: number };
   education: { id: number; programme_id: number | null; institution: string; qualification: string; start_year: number | null; end_year: number | null; cgpa: number | null; notes: string | null }[];
   subjects: { id: number; name: string; code: string | null; year: number | null; clos: string[]; plo_codes: string[]; skills: string[]; grade: string | null }[];
   skills: { id: number; name: string; category: string; level: number; source: string; evidence: string | null }[];
@@ -14,7 +14,7 @@ const J = <T>(s: unknown, d: T): T => { try { return s ? JSON.parse(String(s)) a
 export async function loadProfile(env: Env, userId: string): Promise<Profile> {
   const db = env.DB;
   const [user, edu, subs, skills, exps, certs] = await Promise.all([
-    db.prepare('SELECT id,name,email,phone,location,headline,linkedin,github,website,role FROM users WHERE id=?').bind(userId).first<Profile['user']>(),
+    db.prepare('SELECT id,name,email,phone,location,headline,linkedin,github,website,role,share_profile,company,avatar_url,(linkedin_sub IS NOT NULL) linkedin_connected FROM users WHERE id=?').bind(userId).first<Profile['user']>(),
     db.prepare('SELECT id,programme_id,institution,qualification,start_year,end_year,cgpa,notes FROM education WHERE user_id=? ORDER BY COALESCE(end_year,9999) DESC').bind(userId).all<Profile['education'][number]>(),
     db.prepare('SELECT s.id,s.name,s.code,s.year,s.clos,s.plo_codes,s.skills,us.grade FROM user_subjects us JOIN subjects s ON s.id=us.subject_id WHERE us.user_id=? ORDER BY s.year,s.name').bind(userId).all<Record<string, unknown>>(),
     db.prepare('SELECT id,name,category,level,source,evidence FROM skills WHERE user_id=? ORDER BY level DESC,name').bind(userId).all<Profile['skills'][number]>(),
