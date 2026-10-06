@@ -1,9 +1,12 @@
 import { Navigate, NavLink, Outlet, Route, Routes, useNavigate } from 'react-router-dom';
-import { BriefcaseBusiness, ClipboardCheck, Compass, FileText, GraduationCap, Kanban, LayoutDashboard, LogOut, ShieldCheck, UserRound } from 'lucide-react';
+import { BriefcaseBusiness, ClipboardCheck, Compass, FileText, GraduationCap, Kanban, LogOut, MessageCircle, Mic, Route as RouteIcon, ShieldCheck, Sun, UserRound } from 'lucide-react';
 import { useAuth } from './lib/auth';
 import { Landing } from './pages/Landing';
 import { AuthPage } from './pages/Auth';
-import { Dashboard } from './pages/Dashboard';
+import { Today } from './pages/Today';
+import { CoachPage } from './pages/Coach';
+import { InterviewPage } from './pages/Interview';
+import { PlanPage } from './pages/Plan';
 import { Onboarding } from './pages/Onboarding';
 import { ProfilePage } from './pages/Profile';
 import { CompetencyPage } from './pages/Competency';
@@ -32,6 +35,9 @@ export default function App() {
         <Route path="ats" element={<AtsPage />} />
         <Route path="jobs" element={<JobsPage />} />
         <Route path="tracker" element={<TrackerPage />} />
+        <Route path="coach" element={<CoachPage />} />
+        <Route path="interview" element={<InterviewPage />} />
+        <Route path="plan" element={<PlanPage />} />
         <Route path="admin" element={<AdminPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
@@ -39,40 +45,74 @@ export default function App() {
   );
 }
 
-const NAV = [
-  { to: '/app', label: 'Dashboard', icon: LayoutDashboard, end: true },
-  { to: '/app/profile', label: 'Profile', icon: UserRound },
-  { to: '/app/competency', label: 'Competency map', icon: GraduationCap },
-  { to: '/app/career', label: 'Career paths', icon: Compass },
-  { to: '/app/resumes', label: 'Resumes', icon: FileText },
-  { to: '/app/ats', label: 'ATS check', icon: ClipboardCheck },
-  { to: '/app/jobs', label: 'Job search', icon: BriefcaseBusiness },
-  { to: '/app/tracker', label: 'Applications', icon: Kanban },
+const GROUPS: { label: string; items: { to: string; label: string; icon: typeof Sun; end?: boolean }[] }[] = [
+  { label: 'Daily', items: [
+    { to: '/app', label: 'Today', icon: Sun, end: true },
+    { to: '/app/coach', label: 'Coach', icon: MessageCircle },
+    { to: '/app/plan', label: 'Learning plan', icon: RouteIcon },
+    { to: '/app/interview', label: 'Mock interview', icon: Mic },
+  ] },
+  { label: 'Your record', items: [
+    { to: '/app/profile', label: 'Profile', icon: UserRound },
+    { to: '/app/competency', label: 'Competency map', icon: GraduationCap },
+    { to: '/app/career', label: 'Career paths', icon: Compass },
+  ] },
+  { label: 'Apply', items: [
+    { to: '/app/resumes', label: 'Resumes', icon: FileText },
+    { to: '/app/ats', label: 'ATS check', icon: ClipboardCheck },
+    { to: '/app/jobs', label: 'Job search', icon: BriefcaseBusiness },
+    { to: '/app/tracker', label: 'Applications', icon: Kanban },
+  ] },
 ];
+
+const TABS = [
+  { to: '/app', label: 'Today', icon: Sun, end: true },
+  { to: '/app/coach', label: 'Coach', icon: MessageCircle },
+  { to: '/app/interview', label: 'Practice', icon: Mic },
+  { to: '/app/jobs', label: 'Jobs', icon: BriefcaseBusiness },
+  { to: '/app/profile', label: 'Me', icon: UserRound },
+];
+
+const Mark = () => <span className="brand__mark" aria-hidden><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4 18c4 0 6-3 8-6s4-6 8-6" /><path d="M15 6h5v5" /></svg></span>;
+export const Brand = ({ to = '/' }: { to?: string }) => <NavLink to={to} className="brand"><Mark /><span>PathForward</span></NavLink>;
 
 function Protected() {
   const { user, logout } = useAuth();
   const nav = useNavigate();
   if (!user) return <Navigate to="/login" replace />;
   const isAdmin = user.role === 'admin';
+  const out = () => { logout(); nav('/'); };
   return (
     <div className="shell">
       <aside className="side">
-        <NavLink to="/app" className="brand"><span className="brand__mark" aria-hidden><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4 18c4 0 6-3 8-6s4-6 8-6" /><path d="M15 6h5v5" /></svg></span><span>Path<b className="brand__accent">Forward</b></span></NavLink>
+        <Brand to="/app" />
         <nav className="side__nav">
           {isAdmin
             ? <NavLink to="/app/admin" className="navlink"><ShieldCheck size={18} /><span>Admin console</span></NavLink>
-            : NAV.map(n => <NavLink key={n.to} to={n.to} end={n.end} className="navlink"><n.icon size={18} /><span>{n.label}</span></NavLink>)}
+            : GROUPS.map(g => (
+              <div key={g.label}>
+                <p className="side__group">{g.label}</p>
+                {g.items.map(n => <NavLink key={n.to} to={n.to} end={n.end} className="navlink"><n.icon size={18} /><span>{n.label}</span></NavLink>)}
+              </div>
+            ))}
         </nav>
         <div className="side__foot">
-          <div className="side__user"><span className="avatar">{user.name.slice(0, 1).toUpperCase()}</span><div><b>{user.name}</b><span>{user.email}</span></div></div>
-          <button className="navlink" onClick={() => { logout(); nav('/'); }}><LogOut size={18} /><span>Sign out</span></button>
+          {!isAdmin && <NavLink to="/app/coach" className="side__coach"><b><MessageCircle size={16} /> Ask Path</b><span>Your coach knows your subjects, skills and plan.</span></NavLink>}
+          <div className="side__user"><span className="avatar">{user.name.slice(0, 1).toUpperCase()}</span><div><b>{user.name}</b><span>{user.email}</span></div><button className="icon-btn" onClick={out} aria-label="Sign out" title="Sign out"><LogOut size={17} /></button></div>
         </div>
       </aside>
+      <header className="topbar">
+        <Brand to="/app" />
+        <div className="row">
+          {!isAdmin && <NavLink to="/app/resumes" className="icon-btn" aria-label="Resumes"><FileText size={19} /></NavLink>}
+          {!isAdmin && <NavLink to="/app/plan" className="icon-btn" aria-label="Learning plan"><RouteIcon size={19} /></NavLink>}
+          <button className="icon-btn" onClick={out} aria-label="Sign out"><LogOut size={19} /></button>
+        </div>
+      </header>
       <main className="main"><Outlet /></main>
       <nav className="tabbar" aria-label="Sections">
-        {!isAdmin && NAV.slice(0, 5).map(n => <NavLink key={n.to} to={n.to} end={n.end}><n.icon size={20} /><span>{n.label.split(' ')[0]}</span></NavLink>)}
-        {isAdmin ? <NavLink to="/app/admin"><ShieldCheck size={20} /><span>Admin</span></NavLink> : <NavLink to="/app/jobs"><BriefcaseBusiness size={20} /><span>Jobs</span></NavLink>}
+        {isAdmin ? <NavLink to="/app/admin"><ShieldCheck size={20} /><span>Admin</span></NavLink>
+          : TABS.map(n => <NavLink key={n.to} to={n.to} end={n.end}><n.icon size={20} /><span>{n.label}</span></NavLink>)}
       </nav>
     </div>
   );
@@ -81,5 +121,5 @@ function Protected() {
 /** Admins land on the console; students on their dashboard. */
 function Home() {
   const { user } = useAuth();
-  return user?.role === 'admin' ? <Navigate to="/app/admin" replace /> : <Dashboard />;
+  return user?.role === 'admin' ? <Navigate to="/app/admin" replace /> : <Today />;
 }
