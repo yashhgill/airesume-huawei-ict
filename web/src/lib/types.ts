@@ -1,6 +1,6 @@
 export interface User { id: string; name: string; email: string; role: string }
 export interface Profile {
-  user: User & { phone: string | null; location: string | null; headline: string | null; linkedin: string | null; github: string | null; website: string | null };
+  user: User & { phone: string | null; location: string | null; headline: string | null; linkedin: string | null; github: string | null; website: string | null; share_profile?: number; company?: string | null; avatar_url?: string | null; linkedin_connected?: number };
   education: { id: number; programme_id: number | null; institution: string; qualification: string; start_year: number | null; end_year: number | null; cgpa: number | null }[];
   subjects: { id: number; name: string; year: number | null; plo_codes: string[]; skills: string[] }[];
   skills: { id: number; name: string; category: string; level: number; source: string; evidence: string | null }[];

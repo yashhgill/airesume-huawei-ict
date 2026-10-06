@@ -42,7 +42,7 @@ app.onError((err, c) => {
 // ── Health ──────────────────────────────────────────────────────────────────
 app.get('/health', async c => {
   const users = await c.env.DB.prepare('SELECT COUNT(*) n FROM users').first<number>('n');
-  return c.json({ ok: true, runtime: c.env.APP_RUNTIME ?? 'cloudflare', ai: c.env.LLM_PROVIDER === 'mock' ? 'mock' : c.env.GROQ_API_KEY ? 'groq' : 'not configured', jobs: c.env.RAPIDAPI_KEY ? ['JSearch', 'Remotive', 'Arbeitnow'] : ['Remotive', 'Arbeitnow'], users, time: new Date().toISOString() });
+  return c.json({ ok: true, runtime: c.env.APP_RUNTIME ?? 'cloudflare', ai: c.env.LLM_PROVIDER === 'mock' ? 'mock' : c.env.GROQ_API_KEY ? 'groq' : 'not configured', jobs: c.env.RAPIDAPI_KEY ? ['JSearch', 'Remotive', 'Arbeitnow'] : ['Remotive', 'Arbeitnow'], users, linkedin: !!(c.env.LINKEDIN_CLIENT_ID && c.env.LINKEDIN_CLIENT_SECRET), time: new Date().toISOString() });
 });
 
 // ── Auth ────────────────────────────────────────────────────────────────────
@@ -67,13 +67,70 @@ app.post('/auth/register', async c => {
 app.post('/auth/login', async c => {
   const b = await c.req.json().catch(() => ({}));
   const email = str(b.email, 160).toLowerCase();
-  const row = await c.env.DB.prepare('SELECT id,name,email,role,password_hash FROM users WHERE email=?').bind(email).first<{ id: string; name: string; email: string; role: string; password_hash: string }>();
+  const row = await c.env.DB.prepare('SELECT id,name,email,role,password_hash,must_change_password FROM users WHERE email=?').bind(email).first<{ id: string; name: string; email: string; role: string; password_hash: string; must_change_password: number }>();
   if (!row || !(await verifyPassword(String(b.password ?? ''), row.password_hash))) bad('Email or password is incorrect.', 401);
   let role = row!.role;
   if (role !== 'admin' && isAdminEmail(c.env, email)) { role = 'admin'; await c.env.DB.prepare("UPDATE users SET role='admin' WHERE id=?").bind(row!.id).run(); }
   const token = await signJwt({ sub: row!.id, email, role, name: row!.name }, secret(c.env));
   await c.env.DB.prepare('INSERT INTO activity (user_id,action) VALUES (?,?)').bind(row!.id, 'login').run();
-  return c.json({ token, user: { id: row!.id, name: row!.name, email, role } });
+  return c.json({ token, user: { id: row!.id, name: row!.name, email, role }, mustChangePassword: !!row!.must_change_password });
+});
+
+
+// ── Sign in with LinkedIn (OpenID Connect) ─────────────────────────────────
+// LinkedIn only shares name, email and photo with apps outside its partner
+// programme. Certifications, positions and skills come from the member's own
+// data export, imported in Profile → Import.
+const LI_AUTH = 'https://www.linkedin.com/oauth/v2/authorization';
+const LI_TOKEN = 'https://www.linkedin.com/oauth/v2/accessToken';
+const LI_USERINFO = 'https://api.linkedin.com/v2/userinfo';
+const liRedirect = (c: C) => `${new URL(c.req.url).origin}/api/auth/linkedin/callback`;
+
+app.get('/auth/linkedin', async c => {
+  if (!c.env.LINKEDIN_CLIENT_ID || !c.env.LINKEDIN_CLIENT_SECRET) bad('LinkedIn sign-in is not configured.', 404);
+  const link = c.req.query('link');   // a signed-in user's token, to connect LinkedIn to an existing account
+  const linkUser = link ? await verifyJwt<{ sub: string }>(link, secret(c.env)) : null;
+  const state = await signJwt({ k: 'li', link: linkUser?.sub ?? null }, secret(c.env), 600);
+  const u = new URL(LI_AUTH);
+  u.search = new URLSearchParams({ response_type: 'code', client_id: c.env.LINKEDIN_CLIENT_ID!, redirect_uri: liRedirect(c), scope: 'openid profile email', state }).toString();
+  return c.redirect(u.toString());
+});
+
+app.get('/auth/linkedin/callback', async c => {
+  const fail = (m: string) => c.redirect(`/auth/linkedin#error=${encodeURIComponent(m)}`);
+  const st = await verifyJwt<{ k: string; link: string | null }>(c.req.query('state') ?? '', secret(c.env));
+  if (!st || st.k !== 'li') return fail('Sign-in expired. Please try again.');
+  const code = c.req.query('code');
+  if (!code) return fail(c.req.query('error_description') ?? 'LinkedIn sign-in was cancelled.');
+  const tr = await fetch(LI_TOKEN, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: liRedirect(c), client_id: c.env.LINKEDIN_CLIENT_ID ?? '', client_secret: c.env.LINKEDIN_CLIENT_SECRET ?? '' }) });
+  if (!tr.ok) return fail('LinkedIn did not accept the sign-in.');
+  const { access_token } = await tr.json() as { access_token: string };
+  const ui = await (await fetch(LI_USERINFO, { headers: { authorization: `Bearer ${access_token}` } })).json() as { sub: string; name?: string; email?: string; email_verified?: boolean; picture?: string };
+  if (!ui.sub) return fail('Could not read your LinkedIn profile.');
+  const db = c.env.DB;
+  type U = { id: string; name: string; email: string; role: string };
+  let user: U | null = null;
+  if (st.link) {
+    await db.prepare('UPDATE users SET linkedin_sub=?, avatar_url=COALESCE(?,avatar_url) WHERE id=?').bind(ui.sub, ui.picture ?? null, st.link).run();
+    user = await db.prepare('SELECT id,name,email,role FROM users WHERE id=?').bind(st.link).first<U>();
+  }
+  user ??= await db.prepare('SELECT id,name,email,role FROM users WHERE linkedin_sub=?').bind(ui.sub).first<U>();
+  if (!user && ui.email && ui.email_verified !== false) {
+    user = await db.prepare('SELECT id,name,email,role FROM users WHERE email=?').bind(ui.email.toLowerCase()).first<U>();
+    if (user) await db.prepare('UPDATE users SET linkedin_sub=?, avatar_url=COALESCE(?,avatar_url) WHERE id=?').bind(ui.sub, ui.picture ?? null, user.id).run();
+  }
+  let fresh = false;
+  if (!user) {
+    if (!ui.email) return fail('Your LinkedIn account has no email we can use.');
+    const id = newId(), email = ui.email.toLowerCase(), name = ui.name || email.split('@')[0];
+    const role = isAdminEmail(c.env, email) ? 'admin' : 'student';
+    await db.prepare('INSERT INTO users (id,name,email,password_hash,role,linkedin_sub,avatar_url) VALUES (?,?,?,?,?,?,?)')
+      .bind(id, name, email, await hashPassword(crypto.randomUUID()), role, ui.sub, ui.picture ?? null).run();
+    user = { id, name, email, role }; fresh = true;
+  }
+  await db.prepare('INSERT INTO activity (user_id,action) VALUES (?,?)').bind(user!.id, fresh ? 'register.linkedin' : 'login.linkedin').run();
+  const token = await signJwt({ sub: user!.id, email: user!.email, role: user!.role, name: user!.name }, secret(c.env));
+  return c.redirect(`/auth/linkedin#token=${token}&new=${fresh ? 1 : 0}&linked=${st.link ? 1 : 0}`);
 });
 
 // ── Auth middleware for everything below ────────────────────────────────────
@@ -86,6 +143,11 @@ const requireUser = async (c: C, next: Next) => {
 };
 const requireAdmin = async (c: C, next: Next) => {
   if (c.get('user').role !== 'admin') bad('Admins only.', 403);
+  await next();
+};
+
+const requireRecruiter = async (c: C, next: Next) => {
+  if (!['recruiter', 'admin'].includes(c.get('user').role)) bad('Recruiters only.', 403);
   await next();
 };
 
@@ -111,6 +173,9 @@ app.get('/catalog/programmes/:id', async c => {
 });
 
 app.use('/me', requireUser);
+app.use('/me/*', requireUser);
+app.use('/talent', requireUser, requireRecruiter);
+app.use('/talent/*', requireUser, requireRecruiter);
 app.use('/profile/*', requireUser);
 app.use('/profile', requireUser);
 app.use('/ai/*', requireUser);
@@ -127,6 +192,23 @@ app.put('/me', async c => {
   await c.env.DB.prepare('UPDATE users SET name=?,phone=?,location=?,headline=?,linkedin=?,github=?,website=? WHERE id=?')
     .bind(str(b.name, 120) || c.get('user').name, str(b.phone, 40), str(b.location, 120), str(b.headline, 160), str(b.linkedin, 200), str(b.github, 200), str(b.website, 200), c.get('user').id).run();
   return c.json(await loadProfile(c.env, c.get('user').id));
+});
+
+app.put('/me/sharing', async c => {
+  const b = await c.req.json().catch(() => ({}));
+  await c.env.DB.prepare('UPDATE users SET share_profile=? WHERE id=?').bind(b.share ? 1 : 0, c.get('user').id).run();
+  await log(c, b.share ? 'sharing.on' : 'sharing.off');
+  return c.json({ ok: true, share: !!b.share });
+});
+
+app.put('/me/password', async c => {
+  const b = await c.req.json().catch(() => ({}));
+  const next = typeof b.next === 'string' ? b.next : '';
+  if (next.length < 8) bad('New password must be at least 8 characters.');
+  const row = await c.env.DB.prepare('SELECT password_hash,must_change_password FROM users WHERE id=?').bind(c.get('user').id).first<{ password_hash: string; must_change_password: number }>();
+  if (!row!.must_change_password && !(await verifyPassword(String(b.current ?? ''), row!.password_hash))) bad('Your current password is incorrect.', 401);
+  await c.env.DB.prepare('UPDATE users SET password_hash=?, must_change_password=0 WHERE id=?').bind(await hashPassword(next), c.get('user').id).run();
+  return c.json({ ok: true });
 });
 
 app.get('/profile/competency', async c => {
@@ -552,6 +634,7 @@ app.get('/today', async c => {
     c.env.DB.prepare("SELECT status FROM saved_jobs WHERE user_id=?").bind(uid).all<{ status: string }>(),
     c.env.DB.prepare('SELECT COUNT(*) n FROM coach_messages WHERE user_id=?').bind(uid).first<number>('n'),
   ]);
+  const views = await c.env.DB.prepare("SELECT COUNT(DISTINCT recruiter_id) n FROM profile_views WHERE student_id=? AND created_at > datetime('now','-30 days')").bind(uid).first<number>('n');
   const comp = await competency(c.env, p);
   // streak: consecutive active days ending today or yesterday (UTC)
   const set = new Set(days.results.map(r => r.d));
@@ -581,10 +664,11 @@ app.get('/today', async c => {
   const ivAge = iv ? (Date.now() - Date.parse(iv.created_at.replace(' ', 'T') + (iv.created_at.endsWith('Z') ? '' : 'Z'))) / 864e5 : 99;
   if (ivAge > 5) moves.push({ kind: 'interview', title: iv ? 'Practise another interview' : 'Try a 5-question mock interview', why: iv?.score != null ? `Last score ${iv.score}/100. Practice compounds.` : 'Ten minutes, instant feedback on every answer.', to: '/app/interview' });
   if (!saved.results.length) moves.push({ kind: 'jobs', title: 'Save three jobs you would apply for', why: 'Ranked by how many of their skills you can prove.', to: '/app/jobs' });
+  if (!p.user.share_profile && p.skills.length >= 5) moves.push({ kind: 'share', title: 'Let recruiters find you', why: 'Partner recruiters search PathForward for students with your skills.', to: '/app/profile?tab=about' });
   if (!msgs) moves.push({ kind: 'coach', title: 'Ask your coach anything', why: 'It already knows your subjects and skills.', to: '/app/coach' });
 
   return c.json({
-    name: p.user.name.split(' ')[0], streak, week, readiness: comp.readiness, covered: comp.covered, total: comp.total,
+    name: p.user.name.split(' ')[0], views: views ?? 0, sharing: !!p.user.share_profile, streak, week, readiness: comp.readiness, covered: comp.covered, total: comp.total,
     moves: moves.slice(0, 3),
     plan: plan ? { role: plan.role, progress: planProgress, current: planWeek, weeks: plan.content.weeks.length } : null,
     interview: iv, resumes: resumes.results.length, applied: saved.results.filter(s => s.status !== 'saved').length, saved: saved.results.length,
@@ -596,6 +680,114 @@ app.get('/today', async c => {
       { key: 'apply', label: 'Apply', done: saved.results.some(s => s.status !== 'saved') },
     ],
   });
+});
+
+
+// Admin: invite a recruiter. Creates the account with a one-time password the
+// recruiter must change at first sign-in, or upgrades an existing account.
+app.post('/admin/recruiters', async c => {
+  const b = await c.req.json().catch(() => ({}));
+  const name = str(b.name, 120), email = str(b.email, 160).toLowerCase(), company = str(b.company, 160);
+  if (!name || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) bad('Enter the recruiter\'s name and a valid email.');
+  if (!company) bad('Enter the recruiter\'s company.');
+  const existing = await c.env.DB.prepare('SELECT id FROM users WHERE email=?').bind(email).first<{ id: string }>();
+  if (existing) {
+    await c.env.DB.prepare("UPDATE users SET role='recruiter', company=? WHERE id=?").bind(company, existing.id).run();
+    await log(c, 'admin.recruiter', `upgraded ${email}`);
+    return c.json({ id: existing.id, email, existing: true, password: null }, 200);
+  }
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+  const password = Array.from(crypto.getRandomValues(new Uint8Array(12)), n => alphabet[n % alphabet.length]).join('');
+  const id = newId();
+  await c.env.DB.prepare("INSERT INTO users (id,name,email,password_hash,role,company,must_change_password) VALUES (?,?,?,?,'recruiter',?,1)")
+    .bind(id, name, email, await hashPassword(password), company).run();
+  await log(c, 'admin.recruiter', `invited ${email}`);
+  return c.json({ id, email, existing: false, password }, 201);
+});
+
+app.get('/admin/recruiters', async c => {
+  const r = await c.env.DB.prepare("SELECT u.id,u.name,u.email,u.company,u.must_change_password pending,u.created_at,(SELECT COUNT(*) FROM shortlist s WHERE s.recruiter_id=u.id) shortlisted,(SELECT COUNT(*) FROM profile_views v WHERE v.recruiter_id=u.id) views FROM users u WHERE u.role='recruiter' ORDER BY u.created_at DESC").all();
+  return c.json(r.results);
+});
+
+// ── Recruiters: talent search and shortlist ─────────────────────────────────
+// Only students who switched on "Let recruiters find me" ever appear here.
+async function candidateCard(env: Env, id: string) {
+  const p = await loadProfile(env, id);
+  const comp = await competency(env, p);
+  const iv = await env.DB.prepare('SELECT MAX(score) s FROM interviews WHERE user_id=?').bind(id).first<number>('s');
+  return {
+    id, name: p.user.name, headline: p.user.headline, location: p.user.location, avatar_url: p.user.avatar_url,
+    programme: p.education[0]?.qualification ?? null, institution: p.education[0]?.institution ?? null, grad_year: p.education[0]?.end_year ?? null, cgpa: p.education[0]?.cgpa ?? null,
+    readiness: comp.readiness, covered: comp.covered, total: comp.total,
+    skills: p.skills.slice(0, 12).map(s => s.name), certifications: p.certifications.map(x => x.name), best_interview: iv ?? null,
+    _p: p, _comp: comp,
+  };
+}
+
+app.get('/talent', async c => {
+  const q = (c.req.query('q') ?? '').toLowerCase().split(',').map(s => s.trim()).filter(Boolean).slice(0, 6);
+  const programme = Number(c.req.query('programme')) || null;
+  const minReady = Number(c.req.query('min')) || 0;
+  const certOnly = c.req.query('cert') === '1';
+  const ids = await c.env.DB.prepare(`SELECT u.id FROM users u WHERE u.role='student' AND u.share_profile=1 ${programme ? 'AND EXISTS (SELECT 1 FROM education e WHERE e.user_id=u.id AND e.programme_id=?)' : ''} ORDER BY u.created_at DESC LIMIT 200`)
+    .bind(...(programme ? [programme] : [])).all<{ id: string }>();
+  const rid = c.get('user').id;
+  const listed = new Map((await c.env.DB.prepare('SELECT student_id,stage FROM shortlist WHERE recruiter_id=?').bind(rid).all<{ student_id: string; stage: string }>()).results.map(r => [r.student_id, r.stage]));
+  const out = [];
+  for (const { id } of ids.results) {
+    const card = await candidateCard(c.env, id);
+    if (card.readiness < minReady) continue;
+    if (certOnly && !card.certifications.length) continue;
+    const hay = [...card._p.skills.map(s => s.name), ...card._p.subjects.map(s => s.name), ...card.certifications, card.headline ?? '', ...card._p.experiences.map(x => `${x.title} ${x.description ?? ''}`)].join(' ').toLowerCase();
+    const hits = q.filter(t => skillInText(t, hay) || hay.includes(t));
+    if (q.length && !hits.length) continue;
+    const { _p, _comp, ...pub } = card;
+    out.push({ ...pub, match: q.length ? Math.round((hits.length / q.length) * 100) : null, matched: hits, stage: listed.get(id) ?? null });
+  }
+  out.sort((a, b) => (b.match ?? 0) - (a.match ?? 0) || b.readiness - a.readiness);
+  await log(c, 'talent.search', q.join(', '));
+  return c.json(out.slice(0, 60));
+});
+
+app.get('/talent/shortlist', async c => {
+  const rows = await c.env.DB.prepare('SELECT s.student_id,s.stage,s.note,s.role,s.updated_at FROM shortlist s JOIN users u ON u.id=s.student_id WHERE s.recruiter_id=? AND u.share_profile=1 ORDER BY s.updated_at DESC').bind(c.get('user').id).all<{ student_id: string; stage: string; note: string | null; role: string | null; updated_at: string }>();
+  const out = [];
+  for (const r of rows.results) { const { _p, _comp, ...card } = await candidateCard(c.env, r.student_id); out.push({ ...card, stage: r.stage, note: r.note, for_role: r.role, updated_at: r.updated_at }); }
+  return c.json(out);
+});
+
+app.get('/talent/:id', async c => {
+  const id = c.req.param('id');
+  const ok = await c.env.DB.prepare("SELECT 1 FROM users WHERE id=? AND role='student' AND share_profile=1").bind(id).first();
+  if (!ok) bad('This student is not sharing their profile.', 404);
+  const { _p: p, _comp: comp, ...card } = await candidateCard(c.env, id);
+  const rid = c.get('user').id;
+  const recent = await c.env.DB.prepare("SELECT 1 FROM profile_views WHERE recruiter_id=? AND student_id=? AND created_at > datetime('now','-1 day')").bind(rid, id).first();
+  if (!recent) await c.env.DB.prepare('INSERT INTO profile_views (recruiter_id,student_id) VALUES (?,?)').bind(rid, id).run();
+  const sl = await c.env.DB.prepare('SELECT stage,note,role FROM shortlist WHERE recruiter_id=? AND student_id=?').bind(rid, id).first();
+  return c.json({
+    ...card, email: p.user.email, phone: p.user.phone, linkedin: p.user.linkedin, github: p.user.github, website: p.user.website,
+    plos: comp.plos, subjects: p.subjects.map(s => s.name), skillsFull: p.skills, experiences: p.experiences, certificationsFull: p.certifications, education: p.education,
+    shortlist: sl,
+  });
+});
+
+app.put('/talent/:id/shortlist', async c => {
+  const id = c.req.param('id');
+  const ok = await c.env.DB.prepare("SELECT 1 FROM users WHERE id=? AND role='student' AND share_profile=1").bind(id).first();
+  if (!ok) bad('This student is not sharing their profile.', 404);
+  const b = await c.req.json().catch(() => ({}));
+  const stage = ['shortlisted', 'contacted', 'interviewing', 'offered', 'passed'].includes(b.stage) ? b.stage : 'shortlisted';
+  await c.env.DB.prepare(`INSERT INTO shortlist (recruiter_id,student_id,stage,note,role) VALUES (?,?,?,?,?)
+    ON CONFLICT(recruiter_id,student_id) DO UPDATE SET stage=excluded.stage, note=COALESCE(excluded.note,shortlist.note), role=COALESCE(excluded.role,shortlist.role), updated_at=datetime('now')`)
+    .bind(c.get('user').id, id, stage, b.note === undefined ? null : str(b.note, 1000), b.role === undefined ? null : str(b.role, 120)).run();
+  return c.json({ ok: true, stage });
+});
+
+app.delete('/talent/:id/shortlist', async c => {
+  await c.env.DB.prepare('DELETE FROM shortlist WHERE recruiter_id=? AND student_id=?').bind(c.get('user').id, c.req.param('id')).run();
+  return c.json({ ok: true });
 });
 
 // ── Admin ───────────────────────────────────────────────────────────────────
@@ -619,7 +811,8 @@ app.get('/admin/users', async c => {
 });
 
 app.put('/admin/users/:id/role', async c => {
-  const role = (await c.req.json()).role === 'admin' ? 'admin' : 'student';
+  const r = (await c.req.json()).role;
+  const role = ['admin', 'recruiter', 'student'].includes(r) ? r : 'student';
   await c.env.DB.prepare('UPDATE users SET role=? WHERE id=?').bind(role, c.req.param('id')).run();
   return c.json({ ok: true });
 });

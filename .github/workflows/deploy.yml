@@ -52,8 +52,10 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
           ADMIN_EMAILS: ${{ secrets.ADMIN_EMAILS }}
+          LINKEDIN_CLIENT_ID: ${{ secrets.LINKEDIN_CLIENT_ID }}
+          LINKEDIN_CLIENT_SECRET: ${{ secrets.LINKEDIN_CLIENT_SECRET }}
         run: |
-          for k in JWT_SECRET GROQ_API_KEY RAPIDAPI_KEY ADMIN_EMAILS; do
+          for k in JWT_SECRET GROQ_API_KEY RAPIDAPI_KEY ADMIN_EMAILS LINKEDIN_CLIENT_ID LINKEDIN_CLIENT_SECRET; do
             v="${!k}"; [ -n "$v" ] && printf '%s' "$v" | npx wrangler secret put "$k" || echo "skip $k (not set)"
           done
       - name: Smoke test

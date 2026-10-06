@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, FileText, GraduationCap, MessageCircle, Mic, Route } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { Brand } from '../App';
+import { ThemeToggle } from '../components/ThemeToggle';
 
 const TRANSCRIPT = [
   ['BITS 2513', 'Cloud Computing Fundamentals', 'A-'],
@@ -24,6 +25,7 @@ export function Landing() {
       <header className="landing__nav">
         <Brand />
         <div className="row">
+          <ThemeToggle compact />
           {user ? <Link className="btn btn--primary" to="/app">Open PathForward <ArrowRight size={16} /></Link> : <>
             <Link className="btn btn--ghost" to="/login">Sign in</Link>
             <Link className="btn btn--primary" to="/register">Get started</Link>
@@ -66,7 +68,7 @@ export function Landing() {
           <p>Every day PathForward picks your next three moves, keeps your streak, and remembers where you left off.</p>
         </div>
         <div className="loop">
-          {LOOP.map(s => <div key={s.t} className="loop__step"><div className="row between"><s.icon /><span className="mono">{s.n}</span></div><h3>{s.t}</h3><p>{s.d}</p></div>)}
+          {LOOP.map((s, i) => <div key={s.t} className={`loop__step lc-${i + 1}`}><div className="row between"><s.icon /><span className="mono">{s.n}</span></div><h3>{s.t}</h3><p>{s.d}</p></div>)}
         </div>
       </section>
 

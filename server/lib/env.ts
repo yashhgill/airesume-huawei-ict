@@ -9,7 +9,9 @@ export interface Env {
   GROQ_FAST_MODEL?: string;   // chat model (default openai/gpt-oss-20b)
   LLM_PROVIDER?: string;      // 'groq' (default) | 'mock' (offline tests only)
   RAPIDAPI_KEY?: string;      // optional: JSearch (Google Jobs incl. Malaysia)
-  ADMIN_EMAILS?: string;      // comma-separated emails auto-promoted to admin
+  ADMIN_EMAILS?: string;
+  LINKEDIN_CLIENT_ID?: string;     // optional: Sign in with LinkedIn (OpenID Connect)
+  LINKEDIN_CLIENT_SECRET?: string;      // comma-separated emails auto-promoted to admin
   APP_RUNTIME?: string;       // 'cloudflare' | 'huawei-ecs'
 }
 

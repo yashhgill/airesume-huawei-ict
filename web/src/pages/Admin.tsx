@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Check, Copy, Pencil, Plus, Trash2, UserPlus } from 'lucide-react';
 import { api } from '../lib/api';
 import { useApi } from '../lib/hooks';
 import { useAuth } from '../lib/auth';
@@ -14,10 +14,11 @@ export function AdminPage() {
   return (
     <div className="page">
       <PageHead eyebrow="Admin" title="Platform console" sub="Usage, AI health, users and the curriculum that powers competency mapping." />
-      <div className="tabs" role="tablist">{[['stats', 'Overview'], ['curriculum', 'Curriculum'], ['users', 'Users'], ['activity', 'Activity log']].map(([id, l]) => <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'is-on' : ''} onClick={() => setTab(id)}>{l}</button>)}</div>
+      <div className="tabs" role="tablist">{[['stats', 'Overview'], ['recruiters', 'Recruiters'], ['users', 'Users'], ['curriculum', 'Curriculum'], ['activity', 'Activity log']].map(([id, l]) => <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'is-on' : ''} onClick={() => setTab(id)}>{l}</button>)}</div>
       {tab === 'stats' && <StatsTab />}
       {tab === 'curriculum' && <Curriculum />}
       {tab === 'users' && <Users />}
+      {tab === 'recruiters' && <Recruiters />}
       {tab === 'activity' && <Activity />}
     </div>
   );
@@ -121,7 +122,7 @@ function Users() {
       <div className="table-wrap"><table className="table">
         <thead><tr><th>Name</th><th>Email</th><th>Joined</th><th>Skills</th><th>Resumes</th><th>Role</th></tr></thead>
         <tbody>{list.data.map(u => <tr key={u.id}><td>{u.name}</td><td>{u.email}</td><td>{u.created_at.slice(0, 10)}</td><td>{u.skills}</td><td>{u.resumes}</td>
-          <td><select value={u.role} aria-label={`Role for ${u.email}`} onChange={async e => { await api(`/admin/users/${u.id}/role`, { method: 'PUT', body: { role: e.target.value } }); list.reload(); }}><option value="student">student</option><option value="admin">admin</option></select></td></tr>)}</tbody>
+          <td><select value={u.role} aria-label={`Role for ${u.email}`} onChange={async e => { await api(`/admin/users/${u.id}/role`, { method: 'PUT', body: { role: e.target.value } }); list.reload(); }}><option value="student">student</option><option value="recruiter">recruiter</option><option value="admin">admin</option></select></td></tr>)}</tbody>
       </table></div>
     </Card>
   );
@@ -137,5 +138,59 @@ function Activity() {
         <tbody>{list.data.map(a => <tr key={a.id} className={a.ok ? '' : 'row-bad'}><td className="mono nowrap">{a.created_at.slice(5, 16)}</td><td>{a.email ?? '–'}</td><td className="mono">{a.action}</td><td>{a.detail}</td><td>{a.ms ?? ''}</td></tr>)}</tbody>
       </table></div>
     </Card>
+  );
+}
+
+function Recruiters() {
+  const list = useApi<{ id: string; name: string; email: string; company: string | null; pending: number; created_at: string; shortlisted: number; views: number }[]>('/admin/recruiters');
+  const [open, setOpen] = useState(false);
+  const [f, setF] = useState({ name: '', email: '', company: '' });
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ email: string; password: string | null; existing: boolean } | null>(null);
+  const [copied, setCopied] = useState(false);
+  const invite = async (e: React.FormEvent) => {
+    e.preventDefault(); setBusy(true); setErr('');
+    try { setResult(await api('/admin/recruiters', { body: f })); setF({ name: '', email: '', company: '' }); list.reload(); }
+    catch (x) { setErr((x as Error).message); } finally { setBusy(false); }
+  };
+  const close = () => { setOpen(false); setResult(null); setErr(''); setCopied(false); };
+  const msg = result?.password ? `You have been invited to recruit on PathForward.\n\nSign in at ${location.origin}/login\nEmail: ${result.email}\nTemporary password: ${result.password}\n\nYou will be asked to choose your own password.` : '';
+  return (
+    <div className="stack">
+      <Card eyebrow="Industry partners" title="Recruiters" actions={<button className="btn btn--primary btn--sm" onClick={() => setOpen(true)}><UserPlus size={15} /> Add recruiter</button>}>
+        <p className="muted small">Recruiters can search students who switched on “Let recruiters find you”, view their evidence and keep a private shortlist. They cannot see students who keep their profile hidden. To make an existing account a recruiter, change its role in Users.</p>
+        {!list.data ? <Spinner /> : !list.data.length ? <p className="muted">No recruiters yet.</p> : (
+          <div className="table-wrap"><table className="table">
+            <thead><tr><th>Name</th><th>Company</th><th>Email</th><th>Status</th><th>Profiles viewed</th><th>Shortlisted</th></tr></thead>
+            <tbody>{list.data.map(r => <tr key={r.id}><td>{r.name}</td><td>{r.company ?? '–'}</td><td>{r.email}</td><td>{r.pending ? <Tag tone="warn">Invited</Tag> : <Tag tone="ok">Active</Tag>}</td><td>{r.views}</td><td>{r.shortlisted}</td></tr>)}</tbody>
+          </table></div>
+        )}
+      </Card>
+      {open && (
+        <Modal title={result ? 'Recruiter added' : 'Add a recruiter'} onClose={close}>
+          {!result ? (
+            <form className="stack" onSubmit={invite}>
+              <Field label="Full name"><input value={f.name} onChange={e => setF({ ...f, name: e.target.value })} required /></Field>
+              <Field label="Work email"><input type="email" value={f.email} onChange={e => setF({ ...f, email: e.target.value })} required /></Field>
+              <Field label="Company"><input value={f.company} onChange={e => setF({ ...f, company: e.target.value })} placeholder="e.g. Huawei Technologies (Malaysia)" required /></Field>
+              <Notice>{err}</Notice>
+              <button className="btn btn--primary" disabled={busy}>{busy ? 'Adding…' : 'Create recruiter account'}</button>
+            </form>
+          ) : result.existing ? (
+            <p><b>{result.email}</b> already had an account. It is now a recruiter account; they sign in with their existing password.</p>
+          ) : (
+            <div className="stack">
+              <Notice tone="ok">Account created. Send these details to the recruiter. The password is shown only once.</Notice>
+              <pre className="invite">{msg}</pre>
+              <div className="row">
+                <button className="btn btn--primary" onClick={() => { navigator.clipboard.writeText(msg); setCopied(true); }}>{copied ? <><Check size={15} /> Copied</> : <><Copy size={15} /> Copy invitation</>}</button>
+                <a className="btn btn--ghost" href={`mailto:${result.email}?subject=${encodeURIComponent('Your PathForward recruiter account')}&body=${encodeURIComponent(msg)}`}>Open in email</a>
+              </div>
+            </div>
+          )}
+        </Modal>
+      )}
+    </div>
   );
 }
