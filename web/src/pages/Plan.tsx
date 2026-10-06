@@ -47,7 +47,7 @@ export function PlanPage() {
                   <div key={ti} className={`task ${t.done ? 'done' : ''}`}>
                     <button className="task__box" aria-label={t.done ? 'Mark not done' : 'Mark done'} onClick={() => toggle(wi, ti, !t.done)}><Check size={14} strokeWidth={3.5} /></button>
                     <span><span className="task__t">{t.title}</span><span className="task__r">{t.resource} · {t.minutes} min</span></span>
-                    <span className="task__k">{t.kind}</span>
+                    <span className={`task__k k-${t.kind}`}>{t.kind}</span>
                   </div>
                 ))}
               </div>

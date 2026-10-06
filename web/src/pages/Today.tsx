@@ -11,7 +11,7 @@ interface TodayData {
   moves: { title: string; why: string; to: string; kind: string }[];
   plan: null | { role: string; progress: number; weeks: number; current: null | { index: number; week: number; theme: string; tasks: Task[] } };
   interview: null | { id: string; role: string; score: number | null };
-  resumes: number; applied: number; saved: number;
+  resumes: number; applied: number; saved: number; views: number; sharing: boolean;
   journey: { key: string; label: string; done: boolean }[];
 }
 
@@ -62,7 +62,7 @@ export function Today() {
         {d.journey.map((j, i) => {
           const Icon = JOURNEY_ICON[j.key] ?? Check;
           return (
-            <Link key={j.key} to={JOURNEY_LINK[j.key]} className={`journey__step ${j.done ? 'done' : ''} ${i === nowIdx ? 'now' : ''}`}>
+            <Link key={j.key} to={JOURNEY_LINK[j.key]} className={`journey__step js-${j.key} ${j.done ? 'done' : ''} ${i === nowIdx ? 'now' : ''}`}>
               <span className="journey__dot">{j.done ? <Check size={18} strokeWidth={3} /> : <Icon size={17} />}</span>{j.label}
             </Link>
           );
@@ -74,7 +74,7 @@ export function Today() {
           {d.moves.length ? (
             <div className="moves">
               {d.moves.map((m, i) => (
-                <Link key={m.kind} to={m.to} className="move">
+                <Link key={m.kind} to={m.to} className={`move mv-${i}`}>
                   <span className="move__n">{String(i + 1).padStart(2, '0')}</span>
                   <span><b>{m.title}</b><span>{m.why}</span></span>
                   <ArrowRight size={18} />
@@ -93,7 +93,7 @@ export function Today() {
                 <div key={task.i} className={`task ${task.done ? 'done' : ''}`}>
                   <button className="task__box" aria-label={task.done ? 'Mark not done' : 'Mark done'} disabled={busy === task.title} onClick={() => toggle(task)}><Check size={14} strokeWidth={3.5} /></button>
                   <span><span className="task__t">{task.title}</span><span className="task__r">{task.resource} · {task.minutes} min</span></span>
-                  <span className="task__k">{task.kind}</span>
+                  <span className={`task__k k-${task.kind}`}>{task.kind}</span>
                 </div>
               ))}
             </div>
@@ -113,10 +113,12 @@ export function Today() {
       </div>
 
       <div className="stat-row">
-        <Link to="/app/competency" className="stat"><span>Readiness</span><b>{d.readiness}<small className="muted" style={{ fontSize: 15 }}>/100</small></b></Link>
-        <Link to="/app/competency" className="stat"><span>Outcomes evidenced</span><b>{d.total ? `${d.covered}/${d.total}` : '–'}</b></Link>
-        <Link to="/app/interview" className="stat"><span>Last interview</span><b>{d.interview?.score ?? '–'}</b></Link>
-        <Link to="/app/tracker" className="stat"><span>Applications</span><b>{d.applied}</b></Link>
+        <Link to="/app/competency" className="stat stat--c1"><span>Readiness</span><b>{d.readiness}<small className="muted" style={{ fontSize: 15 }}>/100</small></b></Link>
+        <Link to="/app/competency" className="stat stat--c2"><span>Outcomes evidenced</span><b>{d.total ? `${d.covered}/${d.total}` : '–'}</b></Link>
+        <Link to="/app/interview" className="stat stat--c3"><span>Last interview</span><b>{d.interview?.score ?? '–'}</b></Link>
+        {d.sharing
+          ? <Link to="/app/profile?tab=about" className="stat stat--c5"><span>Recruiter views · 30 days</span><b>{d.views}</b></Link>
+          : <Link to="/app/profile?tab=about" className="stat stat--c5"><span>Recruiters</span><b className="stat__cta">Get found →</b></Link>}
       </div>
     </div>
   );

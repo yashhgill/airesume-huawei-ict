@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Plus, Sparkles, Trash2, Upload } from 'lucide-react';
+import { Eye, Linkedin, Plus, Sparkles, Trash2, Upload } from 'lucide-react';
+import { readLinkedIn } from '../lib/linkedin';
+import { tokenStore } from '../lib/api';
 import { api } from '../lib/api';
 import { useApi } from '../lib/hooks';
 import type { Profile } from '../lib/types';
@@ -12,7 +14,7 @@ const TABS = [
   { id: 'skills', label: 'Skills' },
   { id: 'experience', label: 'Experience' },
   { id: 'certs', label: 'Certifications' },
-  { id: 'import', label: 'Import CV' },
+  { id: 'import', label: 'Import' },
 ];
 
 export function ProfilePage() {
@@ -49,7 +51,25 @@ function About({ p, onSaved }: { p: Profile; onSaved: () => void }) {
     e.preventDefault(); setErr(''); setMsg('');
     try { await api('/me', { method: 'PUT', body: f }); setMsg('Saved.'); onSaved(); } catch (x) { setErr((x as Error).message); }
   };
+  const [share, setShare] = useState(!!p.user.share_profile);
+  const [li, setLi] = useState(false);
+  useEffect(() => { api<{ linkedin?: boolean }>('/health').then(h => setLi(!!h.linkedin)).catch(() => {}); }, []);
+  const toggleShare = async () => { const next = !share; setShare(next); try { await api('/me/sharing', { method: 'PUT', body: { share: next } }); onSaved(); } catch { setShare(!next); } };
   return (
+    <div className="stack">
+    <div className="grid-2">
+      <Card eyebrow="Visibility" title="Let recruiters find you">
+        <p className="muted small">When on, partner recruiters can find you by skills and see your competency map, skills, projects and certifications. Your phone and email are shown only to recruiters approved by your faculty. Switch it off at any time.</p>
+        <label className="switch"><input type="checkbox" checked={share} onChange={toggleShare} /><span className="switch__track" aria-hidden /><span><b>{share ? 'Visible to recruiters' : 'Hidden from recruiters'}</b></span><Eye size={16} className="muted" /></label>
+      </Card>
+      <Card eyebrow="LinkedIn" title={p.user.linkedin_connected ? 'LinkedIn connected' : 'Connect LinkedIn'}>
+        <p className="muted small">Sign in with LinkedIn next time, and import your certifications, positions and skills from your LinkedIn data in the Import tab.</p>
+        <div className="row">
+          {li && !p.user.linkedin_connected && <a className="btn btn--linkedin" href={`/api/auth/linkedin?link=${encodeURIComponent(tokenStore.get() ?? '')}`}><Linkedin size={16} /> Connect LinkedIn</a>}
+          <Link className="btn btn--ghost" to="/app/profile?tab=import">Import LinkedIn data</Link>
+        </div>
+      </Card>
+    </div>
     <Card>
       <form className="form-grid" onSubmit={save}>
         <Field label="Full name"><input value={f.name} onChange={set('name')} required /></Field>
@@ -62,6 +82,7 @@ function About({ p, onSaved }: { p: Profile; onSaved: () => void }) {
         <div className="form-grid__foot"><Notice>{err}</Notice><Notice tone="ok">{msg}</Notice><button className="btn btn--primary">Save profile</button></div>
       </form>
     </Card>
+    </div>
   );
 }
 
@@ -232,7 +253,7 @@ function Certs({ p, reload }: { p: Profile; reload: () => void }) {
   );
 }
 
-type Draft = { name?: string; phone?: string; location?: string; headline?: string; education: { qualification: string; institution: string; start_year?: number; end_year?: number }[]; skills: { name: string; category: string }[]; experiences: { kind: string; title: string; organisation?: string; start_date?: string; end_date?: string }[]; certifications: { name: string; issuer?: string }[] };
+type Draft = { name?: string; phone?: string; location?: string; headline?: string; education: { qualification: string; institution: string; start_year?: number; end_year?: number }[]; skills: { name: string; category: string }[]; experiences: { kind: string; title: string; organisation?: string; start_date?: string; end_date?: string }[]; certifications: { name: string; issuer?: string; year?: string }[] };
 
 function Import({ reload }: { reload: () => void }) {
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -247,11 +268,32 @@ function Import({ reload }: { reload: () => void }) {
     const form = new FormData(); form.append('file', file);
     try { setDraft((await api<{ draft: Draft }>('/ai/import', { form })).draft); } catch (x) { setErr((x as Error).message); } finally { setBusy(false); }
   };
+  const [liFound, setLiFound] = useState('');
+  const fromLinkedIn = async (files: File[]) => {
+    setBusy(true); setErr(''); setLiFound('');
+    try { const d = await readLinkedIn(files); setLiFound(d.found.join(' · ')); setDraft(d); } catch (x) { setErr((x as Error).message); } finally { setBusy(false); }
+  };
   const fromText = async () => { setBusy(true); setErr(''); try { setDraft((await api<{ draft: Draft }>('/ai/import', { body: { text } })).draft); } catch (x) { setErr((x as Error).message); } finally { setBusy(false); } };
   const apply = async () => { setBusy(true); try { const r = await api<{ records: number }>('/profile/import', { body: draft }); setDone(`Added ${r.records} records to your profile.`); setDraft(null); reload(); } catch (x) { setErr((x as Error).message); } finally { setBusy(false); } };
 
   return (
     <div className="grid-2">
+      <div className="stack">
+      <Card title="Import from LinkedIn" eyebrow="Certifications, positions, skills, education">
+        <ol className="steps-v">
+          <li>On LinkedIn open <b>Settings → Data privacy → Get a copy of your data</b>.</li>
+          <li>Choose <b>Download larger data archive</b>, or tick Positions, Education, Skills, Certifications, Projects and Profile.</li>
+          <li>LinkedIn emails you a link (usually within 10 minutes). Download the .zip and drop it here.</li>
+        </ol>
+        <label className="drop drop--li">
+          <Linkedin size={24} />
+          <b>{busy ? 'Reading your LinkedIn data…' : 'Choose the LinkedIn .zip'}</b>
+          <span>Or select its CSV files. It is read on your device; nothing is saved until you confirm.</span>
+          <input type="file" multiple accept=".zip,.csv,application/zip,text/csv" onChange={e => e.target.files?.length && fromLinkedIn([...e.target.files])} disabled={busy} />
+        </label>
+        {liFound && <Notice tone="ok">Found {liFound}. Review it on the right.</Notice>}
+        <p className="muted small">In a hurry? On your LinkedIn profile choose <b>More → Save to PDF</b> and upload that PDF below instead.</p>
+      </Card>
       <Card title="Import an existing CV" eyebrow="PDF or text">
         <label className="drop">
           <Upload size={24} />
@@ -263,6 +305,7 @@ function Import({ reload }: { reload: () => void }) {
         <button className="btn btn--ghost" onClick={fromText} disabled={busy || text.trim().length < 40}>Read pasted text</button>
         <Notice>{err}</Notice><Notice tone="ok">{done}</Notice>
       </Card>
+      </div>
       <Card title="Review before adding" eyebrow="Nothing is saved until you confirm">
         {busy && <Spinner label="Extracting" />}
         {!draft && !busy && <p className="muted">After you upload, the extracted education, skills and experience appear here for you to check.</p>}
@@ -271,7 +314,7 @@ function Import({ reload }: { reload: () => void }) {
             {draft.education?.length > 0 && <div><p className="eyebrow">Education</p><ul className="list">{draft.education.map((e, i) => <li key={i}>{e.qualification} · {e.institution}</li>)}</ul></div>}
             {draft.experiences?.length > 0 && <div><p className="eyebrow">Experience</p><ul className="list">{draft.experiences.map((e, i) => <li key={i}>{e.title}{e.organisation ? ` · ${e.organisation}` : ''}</li>)}</ul></div>}
             {draft.skills?.length > 0 && <div><p className="eyebrow">Skills</p><div className="chips">{draft.skills.map(s => <Tag key={s.name}>{s.name}</Tag>)}</div></div>}
-            {draft.certifications?.length > 0 && <div><p className="eyebrow">Certifications</p><ul className="list">{draft.certifications.map((c, i) => <li key={i}>{c.name}</li>)}</ul></div>}
+            {draft.certifications?.length > 0 && <div><p className="eyebrow">Certifications</p><ul className="list">{draft.certifications.map((c, i) => <li key={i}><span>{c.name}</span><span className="muted small">{[c.issuer, c.year].filter(Boolean).join(' · ')}</span></li>)}</ul></div>}
             <div className="row"><button className="btn btn--primary" onClick={apply} disabled={busy}>Add to my profile</button><button className="btn btn--ghost" onClick={() => setDraft(null)}>Discard</button></div>
           </div>
         )}
