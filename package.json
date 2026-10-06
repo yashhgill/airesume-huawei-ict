@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "AI Resume & Competency Mapper \u2014 Huawei ICT Competition 2026 (Innovation Track)",
+  "description": "AI Resume & Competency Mapper — Huawei ICT Competition 2026 (Innovation Track)",
   "scripts": {
     "dev": "concurrently -k -n api,web \"npm:dev:api\" \"npm:dev:web\"",
     "dev:api": "tsx watch --env-file-if-exists=.env server/node.ts",
@@ -32,6 +32,7 @@
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^9.1.0",
     "esbuild": "^0.24.0",
+    "fflate": "^0.8.3",
     "lucide-react": "^0.460.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
