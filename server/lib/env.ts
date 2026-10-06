@@ -5,7 +5,8 @@ export interface Env {
   ASSETS?: Fetcher;
   JWT_SECRET?: string;
   GROQ_API_KEY?: string;
-  GROQ_MODEL?: string;
+  GROQ_MODEL?: string;        // smart model (default openai/gpt-oss-120b)
+  GROQ_FAST_MODEL?: string;   // chat model (default openai/gpt-oss-20b)
   LLM_PROVIDER?: string;      // 'groq' (default) | 'mock' (offline tests only)
   RAPIDAPI_KEY?: string;      // optional: JSearch (Google Jobs incl. Malaysia)
   ADMIN_EMAILS?: string;      // comma-separated emails auto-promoted to admin

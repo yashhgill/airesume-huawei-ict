@@ -25,6 +25,10 @@ export function mockLlm(task: string, input: any): unknown {
     case 'cover_letter': return { subject: `Application: ${input.job.title}`, body: `Dear Hiring Manager,\n\nI am applying for ${input.job.title}.\n\nRegards,\n${input.p.user.name}` };
     case 'job_fit': return { score: 65, summary: 'Reasonable fit.', matched: ['Cloud Computing'], missing: ['3 years experience'], advice: ['Build a project'] };
     case 'parse_resume': return { name: 'Imported Name', education: [{ qualification: 'Diploma in IT', institution: 'Politeknik Melaka', start_year: 2019, end_year: 2021 }], skills: [{ name: 'Python', category: 'Technical' }], experiences: [{ kind: 'internship', title: 'IT Intern', organisation: 'Acme Sdn Bhd', start_date: '2021-03', end_date: '2021-08', description: 'Supported helpdesk tickets.' }], certifications: [] };
+    case 'coach': return 'Good question. Based on your subjects, your strongest angle is cloud and databases. Next step: generate a resume for a Cloud Support role and run the ATS check.';
+    case 'interview_questions': return { questions: [1, 2, 3, 4, 5].map(i => ({ q: `Question ${i} for ${input.role}?`, focus: i % 2 ? 'Teamwork' : 'Technical depth', tip: 'Use the STAR structure.' })) };
+    case 'grade_answer': return { score: input.answer.length > 80 ? 7 : 4, verdict: 'Clear but could show more impact.', strengths: ['Relevant example'], improve: ['Add the result'], better: `In my project I ${input.answer.slice(0, 60)}...` };
+    case 'plan': return { summary: `A plan to become a ${input.role}.`, role: input.role, certification: { name: 'HCIA-Cloud Computing', why: 'Entry cloud certification.' }, weeks: Array.from({ length: input.weeks }, (_, i) => ({ week: i + 1, theme: `Week ${i + 1} focus`, tasks: [{ title: 'Study a module', kind: 'learn', resource: 'Huawei Talent', minutes: 120 }, { title: 'Build part of the project', kind: 'build', resource: 'GitHub', minutes: 120 }] })) };
     default: return {};
   }
 }

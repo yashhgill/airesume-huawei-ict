@@ -92,3 +92,57 @@ export async function parseResumeText(env: Env, text: string) {
     user: `RESUME TEXT:\n${clip(text, 9000)}\n\nReturn {"name","phone","location","headline","linkedin","github","education":[{"qualification","institution","start_year","end_year","cgpa"}],"skills":[{"name","category":"Technical|Tool|Soft|Language"}],"experiences":[{"kind":"work|internship|project|activity","title","organisation","start_date","end_date","description"}],"certifications":[{"name","issuer","year"}]}`,
   });
 }
+
+// ── Coach, interview practice and learning plans ────────────────────────────
+
+export function coachSystem(p: Profile, extra: { plos: { code: string; domain: string; strength: number }[]; readiness: number; plan?: string | null; lastInterview?: string | null }) {
+  const weak = extra.plos.filter(x => x.strength < 40).map(x => `${x.code} ${x.domain}`).join(', ') || 'none';
+  return `You are Path, the career coach inside PathForward, talking with a Malaysian university student. You know their record:
+
+${profileBrief(p)}
+
+Employability readiness: ${extra.readiness}/100. Weak programme learning outcomes: ${weak}.
+${extra.plan ? `Current learning plan: ${extra.plan}` : 'No learning plan yet.'}
+${extra.lastInterview ? `Last mock interview: ${extra.lastInterview}` : ''}
+
+How to coach:
+- Be warm, direct and specific to THIS student. Refer to their actual subjects, skills and projects by name.
+- Keep replies short: 2-5 sentences or a tight list. End with one concrete next step when it helps.
+- Use Malaysian context (JobStreet, Hiredly, LinkedIn, MDEC, TalentCorp, typical fresh-graduate salaries in RM, Huawei HCIA certifications).
+- Never invent facts about the student. If you need information, ask one question.
+- When a PathForward feature fits, name it: Resumes, ATS check, Job search, Mock interview, Learning plan, Competency map.
+- Plain text with simple markdown (bold, lists). No headings.`;
+}
+
+export async function interviewQuestions(env: Env, p: Profile, opts: { role: string; kind: string; job?: string }) {
+  return llmJson<{ questions: { q: string; focus: string; tip: string }[] }>(env, {
+    task: 'interview_questions', input: opts, temperature: 0.6, speed: 'smart',
+    system: `You are an experienced Malaysian hiring manager running a graduate interview. Ask realistic questions a fresh graduate would face. ${HONEST}`,
+    user: `Candidate profile:\n${profileBrief(p)}\n\nRole: ${opts.role}\nInterview style: ${opts.kind} (behavioural = situational STAR questions; technical = role knowledge and problem solving; mixed = both)\n${opts.job ? `Job advert:\n${clip(opts.job, 2000)}\n` : ''}\nWrite 5 questions in the order an interviewer would ask them, opening with an easy one. Make at least two refer to something specific in the candidate's own profile (a subject, project or skill). For each give the competency it tests (focus) and a one-line tip for answering.\nReturn {"questions":[{"q","focus","tip"}]}`,
+  });
+}
+
+export interface AnswerFeedback { score: number; verdict: string; strengths: string[]; improve: string[]; better: string }
+
+export async function gradeAnswer(env: Env, p: Profile, opts: { role: string; question: string; focus: string; answer: string }) {
+  return llmJson<AnswerFeedback>(env, {
+    task: 'grade_answer', input: opts, temperature: 0.3, speed: 'fast',
+    system: `You are a fair, encouraging interview coach. Score answers like a real panel would for a fresh graduate. Use the STAR structure (Situation, Task, Action, Result) for behavioural questions. ${HONEST}`,
+    user: `Role: ${opts.role}\nQuestion: ${opts.question}\nTests: ${opts.focus}\nCandidate's answer: ${clip(opts.answer, 3000)}\n\nCandidate background (for the improved answer, use only these facts):\n${clip(profileBrief(p), 2500)}\n\nReturn {"score":1-10,"verdict":"one sentence","strengths":["up to 3"],"improve":["up to 3 specific fixes"],"better":"a stronger version of THEIR answer in 80-120 words, first person, using only facts from their answer and background"}`,
+  });
+}
+
+export interface PlanContent {
+  summary: string;
+  role: string;
+  certification?: { name: string; why: string };
+  weeks: { week: number; theme: string; tasks: { title: string; kind: 'learn' | 'build' | 'certify' | 'apply' | 'practice'; resource: string; minutes: number; done?: boolean }[] }[];
+}
+
+export async function learningPlan(env: Env, p: Profile, opts: { role: string; weeks: number; hours: number; gaps: string[] }) {
+  return llmJson<PlanContent>(env, {
+    task: 'plan', input: opts, temperature: 0.4, maxTokens: 3000, speed: 'smart',
+    system: `You design realistic self-study plans for Malaysian university students juggling classes. Prefer free, well-known resources (Huawei Talent online courses, Huawei Cloud docs, freeCodeCamp, Coursera audit, official documentation, YouTube channels) and name them exactly. ${HONEST}`,
+    user: `Candidate profile:\n${profileBrief(p)}\n\nTarget role: ${opts.role}\nKnown gaps: ${opts.gaps.join(', ') || 'work them out from the profile'}\nDuration: ${opts.weeks} weeks, about ${opts.hours} hours per week.\n\nBuild a week-by-week plan that closes the gaps and ends with something the student can show (a project, a certification, applications sent). 3-4 tasks per week; minutes per task must add up to roughly the weekly hours. kinds: learn, build, practice, certify, apply. Include one portfolio project built across several weeks and, where it fits, a Huawei HCIA certification.\nReturn {"summary":"2 sentences","role":"${opts.role}","certification":{"name","why"},"weeks":[{"week":1,"theme","tasks":[{"title","kind","resource","minutes"}]}]}`,
+  });
+}
