@@ -4,8 +4,9 @@ import { HTTPException } from 'hono/http-exception';
 import type { AppVars, Env } from './lib/env';
 import { hashPassword, newId, signJwt, verifyJwt, verifyPassword } from './lib/auth';
 import { competency, loadProfile } from './lib/profile';
+import { coachSystem, gradeAnswer, interviewQuestions, learningPlan, type PlanContent } from './lib/ai';
 import { atsReview, careerInsights, coverLetter, generateResume, inferSkills, jobFit, parseResumeText, type JobLite, type ResumeContent } from './lib/ai';
-import { LlmError } from './lib/llm';
+import { LlmError, llmStream } from './lib/llm';
 import { searchJobs } from './lib/jobs';
 import { extractKeywords, quickMatch, skillInText } from './lib/text';
 
@@ -399,6 +400,202 @@ app.put('/jobs/saved/:id', async c => {
 app.delete('/jobs/saved/:id', async c => {
   await c.env.DB.prepare('DELETE FROM saved_jobs WHERE id=? AND user_id=?').bind(c.req.param('id'), c.get('user').id).run();
   return c.json({ ok: true });
+});
+
+// ── Coach (streaming chat) ──────────────────────────────────────────────────
+app.use('/coach/*', requireUser);
+app.use('/interviews', requireUser);
+app.use('/interviews/*', requireUser);
+app.use('/plan', requireUser);
+app.use('/plan/*', requireUser);
+app.use('/today', requireUser);
+
+async function latestPlan(c: C) {
+  const r = await c.env.DB.prepare('SELECT id,role,content,created_at FROM plans WHERE user_id=? ORDER BY created_at DESC LIMIT 1').bind(c.get('user').id).first<{ id: string; role: string; content: string; created_at: string }>();
+  return r ? { ...r, content: JSON.parse(r.content) as PlanContent } : null;
+}
+
+app.get('/coach/history', async c => {
+  const r = await c.env.DB.prepare('SELECT id,role,content,created_at FROM (SELECT * FROM coach_messages WHERE user_id=? ORDER BY id DESC LIMIT 60) ORDER BY id').bind(c.get('user').id).all();
+  return c.json(r.results);
+});
+
+app.delete('/coach/history', async c => {
+  await c.env.DB.prepare('DELETE FROM coach_messages WHERE user_id=?').bind(c.get('user').id).run();
+  return c.json({ ok: true });
+});
+
+app.post('/coach/chat', async c => {
+  const b = await c.req.json().catch(() => ({}));
+  const message = str(b.message, 2000);
+  if (!message) bad('Type a message for your coach.');
+  const uid = c.get('user').id;
+  const [p, hist, plan, iv] = await Promise.all([
+    loadProfile(c.env, uid),
+    c.env.DB.prepare('SELECT role,content FROM (SELECT * FROM coach_messages WHERE user_id=? ORDER BY id DESC LIMIT 12) ORDER BY id').bind(uid).all<{ role: string; content: string }>(),
+    latestPlan(c),
+    c.env.DB.prepare('SELECT role,score FROM interviews WHERE user_id=? AND score IS NOT NULL ORDER BY created_at DESC LIMIT 1').bind(uid).first<{ role: string; score: number }>(),
+  ]);
+  const comp = await competency(c.env, p);
+  const done = plan ? plan.content.weeks.flatMap(w => w.tasks).filter(t => t.done).length : 0;
+  const total = plan ? plan.content.weeks.flatMap(w => w.tasks).length : 0;
+  const system = coachSystem(p, { plos: comp.plos, readiness: comp.readiness, plan: plan ? `${plan.role}, ${done}/${total} tasks done` : null, lastInterview: iv ? `${iv.role}, scored ${iv.score}/100` : null });
+  await c.env.DB.prepare('INSERT INTO coach_messages (user_id,role,content) VALUES (?,?,?)').bind(uid, 'user', message).run();
+  const started = Date.now();
+  const stream = await llmStream(c.env, {
+    task: 'coach', input: { message }, speed: 'fast',
+    messages: [{ role: 'system', content: system }, ...hist.results.map(h => ({ role: (h.role === 'coach' ? 'assistant' : 'user') as 'assistant' | 'user', content: h.content })), { role: 'user', content: message }],
+    onDone: async full => {
+      if (full.trim()) await c.env.DB.prepare('INSERT INTO coach_messages (user_id,role,content) VALUES (?,?,?)').bind(uid, 'coach', full.trim()).run();
+      await log(c, 'ai.coach', message.slice(0, 80), !!full.trim(), started);
+    },
+  });
+  return new Response(stream, { headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-cache', 'x-content-type-options': 'nosniff' } });
+});
+
+// ── Mock interviews ─────────────────────────────────────────────────────────
+type IvRow = { id: string; role: string; kind: string; questions: string; answers: string; score: number | null; created_at: string; finished_at: string | null };
+const ivView = (r: IvRow) => ({ ...r, questions: JSON.parse(r.questions), answers: JSON.parse(r.answers) });
+
+app.get('/interviews', async c => {
+  const r = await c.env.DB.prepare('SELECT * FROM interviews WHERE user_id=? ORDER BY created_at DESC LIMIT 30').bind(c.get('user').id).all<IvRow>();
+  return c.json(r.results.map(ivView));
+});
+
+app.post('/interviews', async c => {
+  const b = await c.req.json().catch(() => ({}));
+  const role = str(b.role, 120);
+  if (!role) bad('Which role are you practising for?');
+  const kind = ['behavioural', 'technical', 'mixed'].includes(b.kind) ? b.kind : 'mixed';
+  const p = await loadProfile(c.env, c.get('user').id);
+  const out = await ai(c, 'ai.interview', () => interviewQuestions(c.env, p, { role, kind, job: str(b.job, 4000) || undefined }), role);
+  const questions = (out.questions ?? []).slice(0, 6).filter(q => q.q);
+  if (!questions.length) bad('The AI did not return questions. Try again.');
+  const id = newId();
+  await c.env.DB.prepare('INSERT INTO interviews (id,user_id,role,kind,questions) VALUES (?,?,?,?,?)').bind(id, p.user.id, role, kind, JSON.stringify(questions)).run();
+  return c.json(ivView((await c.env.DB.prepare('SELECT * FROM interviews WHERE id=?').bind(id).first<IvRow>())!), 201);
+});
+
+app.get('/interviews/:id', async c => {
+  const r = await c.env.DB.prepare('SELECT * FROM interviews WHERE id=? AND user_id=?').bind(c.req.param('id'), c.get('user').id).first<IvRow>();
+  if (!r) bad('Interview not found.', 404);
+  return c.json(ivView(r!));
+});
+
+app.post('/interviews/:id/answer', async c => {
+  const b = await c.req.json().catch(() => ({}));
+  const r = await c.env.DB.prepare('SELECT * FROM interviews WHERE id=? AND user_id=?').bind(c.req.param('id'), c.get('user').id).first<IvRow>();
+  if (!r) bad('Interview not found.', 404);
+  const iv = ivView(r!);
+  const index = Number(b.index), answer = str(b.answer, 4000);
+  if (!Number.isInteger(index) || !iv.questions[index]) bad('Unknown question.');
+  if (answer.length < 15) bad('Give a fuller answer (at least a sentence or two).');
+  const p = await loadProfile(c.env, c.get('user').id);
+  const q = iv.questions[index];
+  const fb = await ai(c, 'ai.interview.grade', () => gradeAnswer(c.env, p, { role: iv.role, question: q.q, focus: q.focus, answer }), iv.role);
+  const answers = [...iv.answers];
+  answers[index] = { answer, ...fb, score: Math.max(1, Math.min(10, Math.round(Number(fb.score) || 0))) };
+  const finished = iv.questions.every((_: unknown, i: number) => answers[i]);
+  const score = finished ? Math.round((answers.reduce((s: number, a: { score: number }) => s + a.score, 0) / answers.length) * 10) : null;
+  await c.env.DB.prepare('UPDATE interviews SET answers=?, score=?, finished_at=? WHERE id=?').bind(JSON.stringify(answers), score, finished ? new Date().toISOString() : null, iv.id).run();
+  return c.json({ feedback: answers[index], score, finished });
+});
+
+app.delete('/interviews/:id', async c => {
+  await c.env.DB.prepare('DELETE FROM interviews WHERE id=? AND user_id=?').bind(c.req.param('id'), c.get('user').id).run();
+  return c.json({ ok: true });
+});
+
+// ── Learning plan ───────────────────────────────────────────────────────────
+app.get('/plan', async c => c.json(await latestPlan(c)));
+
+app.post('/plan', async c => {
+  const b = await c.req.json().catch(() => ({}));
+  const role = str(b.role, 120);
+  if (!role) bad('Pick the role you are working towards.');
+  const weeks = Math.max(2, Math.min(12, Number(b.weeks) || 6));
+  const hours = Math.max(2, Math.min(30, Number(b.hours) || 6));
+  const p = await loadProfile(c.env, c.get('user').id);
+  const comp = await competency(c.env, p);
+  const gaps = [...(Array.isArray(b.gaps) ? b.gaps.map((g: unknown) => str(g, 60)).filter(Boolean).slice(0, 10) : []), ...comp.plos.filter(x => x.strength < 40).map(x => x.domain).slice(0, 4)];
+  const out = await ai(c, 'ai.plan', () => learningPlan(c.env, p, { role, weeks, hours, gaps }), role);
+  const content: PlanContent = {
+    summary: out.summary ?? '', role, certification: out.certification,
+    weeks: (out.weeks ?? []).slice(0, weeks).map((w, i) => ({ week: i + 1, theme: w.theme ?? '', tasks: (w.tasks ?? []).slice(0, 6).map(t => ({ title: t.title, kind: t.kind ?? 'learn', resource: t.resource ?? '', minutes: Number(t.minutes) || 60, done: false })) })),
+  };
+  const id = newId();
+  await c.env.DB.prepare('INSERT INTO plans (id,user_id,role,content) VALUES (?,?,?,?)').bind(id, p.user.id, role, JSON.stringify(content)).run();
+  return c.json(await latestPlan(c), 201);
+});
+
+app.put('/plan/task', async c => {
+  const b = await c.req.json().catch(() => ({}));
+  const plan = await latestPlan(c);
+  if (!plan) bad('No plan yet.', 404);
+  const t = plan!.content.weeks[Number(b.week)]?.tasks[Number(b.index)];
+  if (!t) bad('Unknown task.');
+  t!.done = !!b.done;
+  await c.env.DB.prepare('UPDATE plans SET content=? WHERE id=?').bind(JSON.stringify(plan!.content), plan!.id).run();
+  if (t!.done) await log(c, 'plan.task', t!.title.slice(0, 80));
+  return c.json({ ok: true });
+});
+
+// ── Today: streak, momentum and the next best moves ─────────────────────────
+app.get('/today', async c => {
+  const uid = c.get('user').id;
+  const [p, days, plan, iv, resumes, saved, msgs] = await Promise.all([
+    loadProfile(c.env, uid),
+    c.env.DB.prepare("SELECT DISTINCT substr(created_at,1,10) d FROM activity WHERE user_id=? AND created_at >= datetime('now','-60 days') ORDER BY d DESC").bind(uid).all<{ d: string }>(),
+    latestPlan(c),
+    c.env.DB.prepare('SELECT id,role,score,created_at FROM interviews WHERE user_id=? ORDER BY created_at DESC LIMIT 1').bind(uid).first<{ id: string; role: string; score: number | null; created_at: string }>(),
+    c.env.DB.prepare('SELECT id,title,ats_score FROM resumes WHERE user_id=? ORDER BY updated_at DESC').bind(uid).all<{ id: string; title: string; ats_score: number | null }>(),
+    c.env.DB.prepare("SELECT status FROM saved_jobs WHERE user_id=?").bind(uid).all<{ status: string }>(),
+    c.env.DB.prepare('SELECT COUNT(*) n FROM coach_messages WHERE user_id=?').bind(uid).first<number>('n'),
+  ]);
+  const comp = await competency(c.env, p);
+  // streak: consecutive active days ending today or yesterday (UTC)
+  const set = new Set(days.results.map(r => r.d));
+  const day = (off: number) => new Date(Date.now() - off * 864e5).toISOString().slice(0, 10);
+  let streak = 0;
+  for (let i = set.has(day(0)) ? 0 : 1; set.has(day(i)); i++) streak++;
+  const week = Array.from({ length: 14 }, (_, i) => ({ day: day(13 - i), active: set.has(day(13 - i)) }));
+
+  // plan: current week = first week with an unfinished task
+  let planWeek = null as null | { index: number; week: number; theme: string; tasks: (PlanContent['weeks'][number]['tasks'][number] & { i: number })[] };
+  let planProgress = 0;
+  if (plan) {
+    const all = plan.content.weeks.flatMap(w => w.tasks);
+    planProgress = all.length ? Math.round((all.filter(t => t.done).length / all.length) * 100) : 0;
+    const wi = plan.content.weeks.findIndex(w => w.tasks.some(t => !t.done));
+    if (wi >= 0) { const w = plan.content.weeks[wi]; planWeek = { index: wi, week: w.week, theme: w.theme, tasks: w.tasks.map((t, i) => ({ ...t, i })) }; }
+  }
+
+  // next best moves, in the order that unlocks the most value
+  const moves: { title: string; why: string; to: string; kind: string }[] = [];
+  if (!p.education.length) moves.push({ kind: 'map', title: 'Map your subjects', why: 'Everything else builds on the subjects you have passed.', to: '/app/start' });
+  if (p.education.length && p.skills.length < 5) moves.push({ kind: 'skills', title: 'Turn subjects into skills', why: 'One click adds skills with the subject as evidence.', to: '/app/profile?tab=skills' });
+  if (!p.experiences.length) moves.push({ kind: 'experience', title: 'Add one project or internship', why: 'Recruiters look for proof you have built something.', to: '/app/profile?tab=experience' });
+  if (!plan) moves.push({ kind: 'plan', title: 'Get a learning plan', why: 'A week-by-week route to the role you want.', to: '/app/plan' });
+  if (!resumes.results.length) moves.push({ kind: 'resume', title: 'Generate your first resume', why: 'Written from your record in under a minute.', to: '/app/resumes?new=1' });
+  else if (resumes.results.every(r => r.ats_score == null)) moves.push({ kind: 'ats', title: 'Check a resume against a real job ad', why: 'See which keywords you are missing.', to: '/app/ats' });
+  const ivAge = iv ? (Date.now() - Date.parse(iv.created_at.replace(' ', 'T') + (iv.created_at.endsWith('Z') ? '' : 'Z'))) / 864e5 : 99;
+  if (ivAge > 5) moves.push({ kind: 'interview', title: iv ? 'Practise another interview' : 'Try a 5-question mock interview', why: iv?.score != null ? `Last score ${iv.score}/100. Practice compounds.` : 'Ten minutes, instant feedback on every answer.', to: '/app/interview' });
+  if (!saved.results.length) moves.push({ kind: 'jobs', title: 'Save three jobs you would apply for', why: 'Ranked by how many of their skills you can prove.', to: '/app/jobs' });
+  if (!msgs) moves.push({ kind: 'coach', title: 'Ask your coach anything', why: 'It already knows your subjects and skills.', to: '/app/coach' });
+
+  return c.json({
+    name: p.user.name.split(' ')[0], streak, week, readiness: comp.readiness, covered: comp.covered, total: comp.total,
+    moves: moves.slice(0, 3),
+    plan: plan ? { role: plan.role, progress: planProgress, current: planWeek, weeks: plan.content.weeks.length } : null,
+    interview: iv, resumes: resumes.results.length, applied: saved.results.filter(s => s.status !== 'saved').length, saved: saved.results.length,
+    journey: [
+      { key: 'map', label: 'Map', done: p.education.length > 0 && p.subjects.length > 0 },
+      { key: 'skills', label: 'Skills', done: p.skills.length >= 5 },
+      { key: 'resume', label: 'Resume', done: resumes.results.length > 0 },
+      { key: 'practice', label: 'Practice', done: !!iv?.score },
+      { key: 'apply', label: 'Apply', done: saved.results.some(s => s.status !== 'saved') },
+    ],
+  });
 });
 
 // ── Admin ───────────────────────────────────────────────────────────────────

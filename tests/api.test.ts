@@ -124,6 +124,39 @@ test('resume import (text) and apply', async () => {
   assert.ok(a.body.records >= 3);
 });
 
+test('coach streams a reply and remembers the conversation', async () => {
+  const res = await app.fetch(new Request('http://t/api/coach/chat', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ message: 'What should I do next?' }) }), env);
+  assert.equal(res.status, 200);
+  const text = await res.text();
+  assert.match(text, /resume/i);
+  const h = await call('GET', '/coach/history');
+  assert.deepEqual(h.body.map((m: any) => m.role), ['user', 'coach']);
+});
+
+test('mock interview: questions, graded answers, final score', async () => {
+  const iv = await call('POST', '/interviews', { role: 'Cloud Support Engineer', kind: 'mixed' });
+  assert.equal(iv.status, 201);
+  assert.equal(iv.body.questions.length, 5);
+  assert.equal((await call('POST', `/interviews/${iv.body.id}/answer`, { index: 0, answer: 'short' })).status, 400);
+  let last: any;
+  for (let i = 0; i < 5; i++) last = await call('POST', `/interviews/${iv.body.id}/answer`, { index: i, answer: 'In my database project I designed the schema, wrote the queries and tested them with my team before the demo.' });
+  assert.equal(last.body.finished, true);
+  assert.equal(last.body.score, 70);
+});
+
+test('learning plan, task progress and today view', async () => {
+  const p = await call('POST', '/plan', { role: 'Cloud Engineer', weeks: 4, hours: 6 });
+  assert.equal(p.status, 201);
+  assert.equal(p.body.content.weeks.length, 4);
+  await call('PUT', '/plan/task', { week: 0, index: 0, done: true });
+  const t = await call('GET', '/today');
+  assert.equal(t.status, 200);
+  assert.ok(t.body.streak >= 1);
+  assert.equal(t.body.plan.progress, 13);
+  assert.equal(t.body.plan.current.tasks[0].done, true);
+  assert.equal(t.body.journey.length, 5);
+});
+
 test('admin sees stats and can edit curriculum', async () => {
   const r = await call('POST', '/auth/register', { name: 'Admin', email: 'admin@test.my', password: 'password123' }, '');
   const admin = r.body.token;
