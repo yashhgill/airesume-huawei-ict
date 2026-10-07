@@ -1,5 +1,6 @@
-import { Navigate, NavLink, Outlet, Route, Routes, useNavigate } from 'react-router-dom';
-import { BriefcaseBusiness, ClipboardCheck, Compass, FileText, GraduationCap, Bookmark, Kanban, LogOut, Search, MessageCircle, Mic, Route as RouteIcon, ShieldCheck, Sun, UserRound } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Navigate, NavLink, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { BriefcaseBusiness, ClipboardCheck, Compass, FileText, GraduationCap, Bookmark, Kanban, LayoutGrid, LogOut, X, Search, MessageCircle, Mic, Route as RouteIcon, ShieldCheck, Sun, UserRound } from 'lucide-react';
 import { useAuth } from './lib/auth';
 import { Landing } from './pages/Landing';
 import { AuthPage, LinkedInDone, SetPassword } from './pages/Auth';
@@ -74,9 +75,8 @@ const GROUPS: { label: string; items: { to: string; label: string; icon: typeof 
 const TABS = [
   { to: '/app', label: 'Today', icon: Sun, end: true },
   { to: '/app/coach', label: 'Coach', icon: MessageCircle },
-  { to: '/app/interview', label: 'Practice', icon: Mic },
+  { to: '/app/resumes', label: 'Resumes', icon: FileText },
   { to: '/app/jobs', label: 'Jobs', icon: BriefcaseBusiness },
-  { to: '/app/profile', label: 'Me', icon: UserRound },
 ];
 
 const RECRUITER = [
@@ -96,6 +96,10 @@ function Protected() {
   const isRecruiter = user.role === 'recruiter';
   const student = !isAdmin && !isRecruiter;
   const out = () => { logout(); nav('/'); };
+  const [more, setMore] = useState(false);
+  const loc = useLocation();
+  useEffect(() => { setMore(false); }, [loc.pathname, loc.search]);
+  useEffect(() => { document.body.style.overflow = more ? 'hidden' : ''; return () => { document.body.style.overflow = ''; }; }, [more]);
   return (
     <div className="shell">
       <aside className="side">
@@ -128,9 +132,7 @@ function Protected() {
         <Brand to="/app" />
         <div className="row">
           <ThemeToggle compact />
-          {student && <NavLink to="/app/resumes" className="icon-btn" aria-label="Resumes"><FileText size={19} /></NavLink>}
-          {student && <NavLink to="/app/plan" className="icon-btn" aria-label="Learning plan"><RouteIcon size={19} /></NavLink>}
-          <button className="icon-btn" onClick={out} aria-label="Sign out"><LogOut size={19} /></button>
+          <button className="topbar__me" onClick={() => setMore(true)} aria-label="Account and all sections"><span className="avatar">{user.name.slice(0, 1).toUpperCase()}</span></button>
         </div>
       </header>
       <main className="main"><Outlet /></main>
@@ -138,7 +140,30 @@ function Protected() {
         {isAdmin && <NavLink to="/app/admin"><ShieldCheck size={20} /><span>Admin</span></NavLink>}
         {(isAdmin || isRecruiter) && RECRUITER.map(n => <NavLink key={n.to} to={n.to}><n.icon size={20} /><span>{n.label === 'Find talent' ? 'Talent' : n.label}</span></NavLink>)}
         {student && TABS.map(n => <NavLink key={n.to} to={n.to} end={n.end}><n.icon size={20} /><span>{n.label}</span></NavLink>)}
+        {student && <button className={more ? 'active' : ''} onClick={() => setMore(true)}><LayoutGrid size={20} /><span>More</span></button>}
       </nav>
+      {more && (
+        <div className="sheet" role="dialog" aria-modal="true" aria-label="All sections" onClick={e => e.target === e.currentTarget && setMore(false)}>
+          <div className="sheet__card">
+            <div className="sheet__head">
+              <div className="side__user"><span className="avatar">{user.name.slice(0, 1).toUpperCase()}</span><div><b>{user.name}</b><span>{user.email}</span></div></div>
+              <button className="icon-btn" onClick={() => setMore(false)} aria-label="Close"><X size={20} /></button>
+            </div>
+            {student && GROUPS.map(g => (
+              <div key={g.label} className="sheet__group">
+                <p className="side__group">{g.label}</p>
+                <div className="sheet__grid">{g.items.map(n => <NavLink key={n.to} to={n.to} end={n.end} className="sheet__item"><n.icon size={20} /><span>{n.label}</span></NavLink>)}</div>
+              </div>
+            ))}
+            {!student && <div className="sheet__grid">
+              {isAdmin && <NavLink to="/app/admin" className="sheet__item"><ShieldCheck size={20} /><span>Admin</span></NavLink>}
+              {RECRUITER.map(n => <NavLink key={n.to} to={n.to} className="sheet__item"><n.icon size={20} /><span>{n.label}</span></NavLink>)}
+            </div>}
+            <div className="sheet__foot"><span className="muted small">Appearance</span><ThemeToggle /></div>
+            <button className="btn btn--ghost btn--wide" onClick={out}><LogOut size={16} /> Sign out</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

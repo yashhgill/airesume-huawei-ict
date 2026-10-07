@@ -12,6 +12,7 @@ export function ResumeEditor() {
   const { id } = useParams();
   const [doc, setDoc] = useState<Doc | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [view, setView] = useState<'edit' | 'preview'>('edit');
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
   const [letter, setLetter] = useState(false);
@@ -62,7 +63,11 @@ export function ResumeEditor() {
         <button className="btn btn--primary btn--sm" onClick={save} disabled={!dirty}><Save size={16} /> Save</button>
       </div>
       <Notice>{err}</Notice>
-      <div className="editor__body">
+      <div className="editor__view seg" role="tablist" aria-label="View">
+        <button role="tab" className={view === 'edit' ? 'is-on' : ''} onClick={() => setView('edit')}>Edit</button>
+        <button role="tab" className={view === 'preview' ? 'is-on' : ''} onClick={() => setView('preview')}>Preview</button>
+      </div>
+      <div className={`editor__body view-${view}`}>
         <aside className="ed no-print">
           <Field label="Headline"><input value={r.headline} onChange={e => update({ headline: e.target.value })} /></Field>
           <Field label="Profile summary"><textarea rows={5} value={r.summary} onChange={e => update({ summary: e.target.value })} /></Field>
