@@ -29,6 +29,7 @@ export function mockLlm(task: string, input: any): unknown {
     case 'interview_questions': return { questions: [1, 2, 3, 4, 5].map(i => ({ q: `Question ${i} for ${input.role}?`, focus: i % 2 ? 'Teamwork' : 'Technical depth', tip: 'Use the STAR structure.' })) };
     case 'grade_answer': return { score: input.answer.length > 80 ? 7 : 4, verdict: 'Clear but could show more impact.', strengths: ['Relevant example'], improve: ['Add the result'], better: `In my project I ${input.answer.slice(0, 60)}...` };
     case 'plan': return { summary: `A plan to become a ${input.role}.`, role: input.role, certification: { name: 'HCIA-Cloud Computing', why: 'Entry cloud certification.' }, weeks: Array.from({ length: input.weeks }, (_, i) => ({ week: i + 1, theme: `Week ${i + 1} focus`, tasks: [{ title: 'Study a module', kind: 'learn', resource: 'Huawei Talent', minutes: 120 }, { title: 'Build part of the project', kind: 'build', resource: 'GitHub', minutes: 120 }] })) };
+    case 'map_subject': return { plo_codes: input.plos.slice(0, 2).map((p: any) => p.code), skills: ['SQL', 'Data Modelling'], notes: 'Mapped from the CLO verbs.' };
     default: return {};
   }
 }

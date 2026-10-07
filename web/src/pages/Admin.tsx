@@ -16,7 +16,7 @@ export function AdminPage() {
       <PageHead eyebrow="Admin" title="Platform console" sub="Usage, AI health, users and the curriculum that powers competency mapping." />
       <div className="tabs" role="tablist">{[['stats', 'Overview'], ['recruiters', 'Recruiters'], ['users', 'Users'], ['curriculum', 'Curriculum'], ['activity', 'Activity log']].map(([id, l]) => <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'is-on' : ''} onClick={() => setTab(id)}>{l}</button>)}</div>
       {tab === 'stats' && <StatsTab />}
-      {tab === 'curriculum' && <Curriculum />}
+      {tab === 'curriculum' && <Card eyebrow="Moved" title="Curriculum now lives in Universities"><p className="muted">Universities, faculties, degrees, PLOs and subjects are managed in the Universities area, where you can also appoint university admins, faculty admins and programme coordinators who each manage their own part.</p><a className="btn btn--primary" href="/app/manage">Open Universities</a></Card>}
       {tab === 'users' && <Users />}
       {tab === 'recruiters' && <Recruiters />}
       {tab === 'activity' && <Activity />}

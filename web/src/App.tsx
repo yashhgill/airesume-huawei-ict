@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Navigate, NavLink, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { BriefcaseBusiness, ClipboardCheck, Compass, FileText, GraduationCap, Bookmark, Kanban, LayoutGrid, LogOut, X, Search, MessageCircle, Mic, Route as RouteIcon, ShieldCheck, Sun, UserRound } from 'lucide-react';
+import { BriefcaseBusiness, ClipboardCheck, Compass, FileText, GraduationCap, Bookmark, Building2, Kanban, LayoutGrid, LogOut, X, Search, MessageCircle, Mic, Route as RouteIcon, ShieldCheck, Sun, UserRound } from 'lucide-react';
 import { useAuth } from './lib/auth';
 import { Landing } from './pages/Landing';
 import { AuthPage, LinkedInDone, SetPassword } from './pages/Auth';
 import { CandidatePage, ShortlistPage, TalentPage } from './pages/Talent';
 import { ThemeToggle } from './components/ThemeToggle';
+import { ManageFaculty, ManageHome, ManageProgramme, ManageUniversity } from './pages/Manage';
 import { Today } from './pages/Today';
 import { CoachPage } from './pages/Coach';
 import { InterviewPage } from './pages/Interview';
@@ -45,6 +46,10 @@ export default function App() {
         <Route path="talent" element={<TalentPage />} />
         <Route path="talent/:id" element={<CandidatePage />} />
         <Route path="shortlist" element={<ShortlistPage />} />
+        <Route path="manage" element={<ManageHome />} />
+        <Route path="manage/u/:id" element={<ManageUniversity />} />
+        <Route path="manage/f/:id" element={<ManageFaculty />} />
+        <Route path="manage/p/:id" element={<ManageProgramme />} />
         <Route path="admin" element={<AdminPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
@@ -79,6 +84,8 @@ const TABS = [
   { to: '/app/jobs', label: 'Jobs', icon: BriefcaseBusiness },
 ];
 
+const MANAGE = [{ to: '/app/manage', label: 'University', icon: Building2 }];
+
 const RECRUITER = [
   { to: '/app/talent', label: 'Find talent', icon: Search },
   { to: '/app/shortlist', label: 'Shortlist', icon: Bookmark },
@@ -90,16 +97,17 @@ export const Brand = ({ to = '/' }: { to?: string }) => <NavLink to={to} classNa
 function Protected() {
   const { user, logout, mustChange } = useAuth();
   const nav = useNavigate();
-  if (!user) return <Navigate to="/login" replace />;
-  if (mustChange) return <SetPassword />;
-  const isAdmin = user.role === 'admin';
-  const isRecruiter = user.role === 'recruiter';
-  const student = !isAdmin && !isRecruiter;
-  const out = () => { logout(); nav('/'); };
   const [more, setMore] = useState(false);
   const loc = useLocation();
   useEffect(() => { setMore(false); }, [loc.pathname, loc.search]);
   useEffect(() => { document.body.style.overflow = more ? 'hidden' : ''; return () => { document.body.style.overflow = ''; }; }, [more]);
+  if (!user) return <Navigate to="/login" replace />;
+  if (mustChange) return <SetPassword />;
+  const isAdmin = user.role === 'admin';
+  const isRecruiter = user.role === 'recruiter';
+  const isStaff = user.role === 'staff';
+  const student = !isAdmin && !isRecruiter && !isStaff;
+  const out = () => { logout(); nav('/'); };
   return (
     <div className="shell">
       <aside className="side">
@@ -108,8 +116,13 @@ function Protected() {
           {isAdmin && <>
             <p className="side__group">Manage</p>
             <NavLink to="/app/admin" className="navlink"><ShieldCheck size={18} /><span>Admin console</span></NavLink>
+            <NavLink to="/app/manage" className="navlink"><Building2 size={18} /><span>Universities</span></NavLink>
             <p className="side__group">Recruiting</p>
             {RECRUITER.map(n => <NavLink key={n.to} to={n.to} className="navlink"><n.icon size={18} /><span>{n.label}</span></NavLink>)}
+          </>}
+          {isStaff && <>
+            <p className="side__group">Manage</p>
+            {MANAGE.map(n => <NavLink key={n.to} to={n.to} className="navlink"><n.icon size={18} /><span>{n.label}</span></NavLink>)}
           </>}
           {isRecruiter && <>
             <p className="side__group">Recruiting</p>
@@ -138,9 +151,10 @@ function Protected() {
       <main className="main"><Outlet /></main>
       <nav className="tabbar" aria-label="Sections">
         {isAdmin && <NavLink to="/app/admin"><ShieldCheck size={20} /><span>Admin</span></NavLink>}
+        {(isAdmin || isStaff) && <NavLink to="/app/manage"><Building2 size={20} /><span>{isAdmin ? 'Unis' : 'Manage'}</span></NavLink>}
         {(isAdmin || isRecruiter) && RECRUITER.map(n => <NavLink key={n.to} to={n.to}><n.icon size={20} /><span>{n.label === 'Find talent' ? 'Talent' : n.label}</span></NavLink>)}
         {student && TABS.map(n => <NavLink key={n.to} to={n.to} end={n.end}><n.icon size={20} /><span>{n.label}</span></NavLink>)}
-        {student && <button className={more ? 'active' : ''} onClick={() => setMore(true)}><LayoutGrid size={20} /><span>More</span></button>}
+        <button className={more ? 'active' : ''} onClick={() => setMore(true)}><LayoutGrid size={20} /><span>More</span></button>
       </nav>
       {more && (
         <div className="sheet" role="dialog" aria-modal="true" aria-label="All sections" onClick={e => e.target === e.currentTarget && setMore(false)}>
@@ -157,7 +171,8 @@ function Protected() {
             ))}
             {!student && <div className="sheet__grid">
               {isAdmin && <NavLink to="/app/admin" className="sheet__item"><ShieldCheck size={20} /><span>Admin</span></NavLink>}
-              {RECRUITER.map(n => <NavLink key={n.to} to={n.to} className="sheet__item"><n.icon size={20} /><span>{n.label}</span></NavLink>)}
+              {(isAdmin || isStaff) && <NavLink to="/app/manage" className="sheet__item"><Building2 size={20} /><span>Universities</span></NavLink>}
+              {!isStaff && RECRUITER.map(n => <NavLink key={n.to} to={n.to} className="sheet__item"><n.icon size={20} /><span>{n.label}</span></NavLink>)}
             </div>}
             <div className="sheet__foot"><span className="muted small">Appearance</span><ThemeToggle /></div>
             <button className="btn btn--ghost btn--wide" onClick={out}><LogOut size={16} /> Sign out</button>
@@ -173,5 +188,6 @@ function Home() {
   const { user } = useAuth();
   if (user?.role === 'admin') return <Navigate to="/app/admin" replace />;
   if (user?.role === 'recruiter') return <Navigate to="/app/talent" replace />;
+  if (user?.role === 'staff') return <Navigate to="/app/manage" replace />;
   return <Today />;
 }

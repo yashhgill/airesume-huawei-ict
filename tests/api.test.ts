@@ -40,7 +40,7 @@ test('health + catalogue are public', async () => {
   assert.equal(h.status, 200);
   assert.equal(h.body.ai, 'mock');
   const cat = await call('GET', '/catalog', undefined, '');
-  assert.equal(cat.body.programmes.length, 5);
+  assert.equal(cat.body.programmes.length, 8);
   const prog = await call('GET', '/catalog/programmes/1', undefined, '');
   assert.equal(prog.body.plos.length, 11);
   assert.ok(prog.body.subjects.length >= 15);
@@ -182,6 +182,51 @@ test('admin invites a recruiter who searches opted-in students and shortlists', 
   await call('PUT', '/me/sharing', { share: false });
   assert.equal((await call('GET', `/talent/${sid}`, undefined, rec)).status, 404);
   assert.equal((await call('GET', '/admin/recruiters', undefined, admin)).body[0].email, 'rina@acme.my');
+});
+
+test('university hierarchy: admins appoint staff who manage only their own scope', async () => {
+  const admin = (await call('POST', '/auth/login', { email: 'admin@test.my', password: 'password123' }, '')).body.token;
+  const uni = await call('POST', '/org/institutions', { name: 'Universiti Contoh', short_name: 'UC', email_domain: 'uc.edu.my' }, admin);
+  assert.equal(uni.status, 201);
+  assert.equal((await call('GET', '/org/tree', undefined, token)).status, 403);       // students are kept out
+  // platform admin appoints a university admin
+  const ua = await call('POST', '/org/staff', { role: 'uni_admin', institution_id: uni.body.id, name: 'Uni Admin', email: 'ua@uc.edu.my' }, admin);
+  const uaTok = (await call('POST', '/auth/login', { email: 'ua@uc.edu.my', password: ua.body.password }, '')).body.token;
+  await call('PUT', '/me/password', { next: 'password123' }, uaTok);
+  const fac = await call('POST', '/org/faculties', { institution_id: uni.body.id, name: 'Faculty of Computing', short_name: 'FC' }, uaTok);
+  assert.equal(fac.status, 201);
+  assert.equal((await call('POST', '/org/faculties', { institution_id: 1, name: 'Hijack' }, uaTok)).status, 403);   // not their university
+  // university admin appoints a faculty admin, who adds a degree and a coordinator
+  const fa = await call('POST', '/org/staff', { role: 'faculty_admin', faculty_id: fac.body.id, name: 'Dean', email: 'dean@uc.edu.my' }, uaTok);
+  const faTok = (await call('POST', '/auth/login', { email: 'dean@uc.edu.my', password: fa.body.password }, '')).body.token;
+  const prog = await call('POST', '/org/programmes', { faculty_id: fac.body.id, name: 'Bachelor of Data Science', mqa_code: 'MQA/X 1' }, faTok);
+  assert.equal(prog.status, 201);
+  assert.equal((await call('POST', '/org/staff', { role: 'faculty_admin', faculty_id: fac.body.id, name: 'X', email: 'x@uc.edu.my' }, faTok)).status, 403);  // cannot appoint peers above
+  const co = await call('POST', '/org/staff', { role: 'coordinator', programme_id: prog.body.id, name: 'Coord', email: 'co@uc.edu.my' }, faTok);
+  const coTok = (await call('POST', '/auth/login', { email: 'co@uc.edu.my', password: co.body.password }, '')).body.token;
+  // coordinator edits curriculum for their programme only
+  const detail = await call('GET', `/org/programmes/${prog.body.id}`, undefined, coTok);
+  assert.equal(detail.body.plos.length, 11);
+  const sub = await call('POST', `/org/programmes/${prog.body.id}/subjects`, { code: 'DS101', name: 'Data Wrangling', year: 1, clos: 'Clean datasets; Visualise data', plo_codes: 'plo1, plo3', skills: 'Python; Pandas' }, coTok);
+  assert.equal(sub.status, 201);
+  const imp = await call('POST', `/org/programmes/${prog.body.id}/subjects/import`, { rows: [{ code: 'DS101', name: 'Data Wrangling', year: 1 }, { code: 'DS102', name: 'Statistics', year: 1, plo_codes: 'PLO2' }] }, coTok);
+  assert.deepEqual(imp.body, { added: 1, updated: 1 });
+  assert.equal((await call('POST', '/org/programmes/1/subjects', { name: 'Nope' }, coTok)).status, 403);
+  assert.equal((await call('POST', '/org/faculties', { institution_id: uni.body.id, name: 'No' }, coTok)).status, 403);
+  const map = await call('POST', `/org/programmes/${prog.body.id}/ai-map`, { name: 'Data Wrangling', clos: ['Clean datasets'] }, coTok);
+  assert.equal(map.body.plo_codes.length, 2);
+  // the new degree is visible to students and the tree is scoped
+  const cat = await call('GET', '/catalog', undefined, '');
+  assert.ok(cat.body.programmes.some((p: any) => p.name === 'Bachelor of Data Science'));
+  const tree = await call('GET', '/org/tree', undefined, coTok);
+  assert.equal(tree.body.length, 1);
+  assert.equal(tree.body[0].faculties[0].programmes.length, 1);
+  const staff = await call('GET', `/org/staff?institution_id=${uni.body.id}`, undefined, uaTok);
+  assert.equal(staff.body.staff.length, 3);
+  const ins = await call('GET', `/org/insights?faculty_id=${fac.body.id}`, undefined, faTok);
+  assert.equal(ins.status, 200);
+  const log = await call('GET', `/org/log?programme_id=${prog.body.id}`, undefined, coTok);
+  assert.ok(log.body.some((l: any) => l.action === 'subject.import'));
 });
 
 test('admin sees stats and can edit curriculum', async () => {

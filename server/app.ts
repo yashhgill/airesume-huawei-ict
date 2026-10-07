@@ -8,6 +8,7 @@ import { coachSystem, gradeAnswer, interviewQuestions, learningPlan, type PlanCo
 import { atsReview, careerInsights, coverLetter, generateResume, inferSkills, jobFit, parseResumeText, type JobLite, type ResumeContent } from './lib/ai';
 import { LlmError, llmStream } from './lib/llm';
 import { searchJobs } from './lib/jobs';
+import org from './org';
 import { extractKeywords, quickMatch, skillInText } from './lib/text';
 
 type C = Context<{ Bindings: Env; Variables: AppVars }>;
@@ -154,9 +155,9 @@ const requireRecruiter = async (c: C, next: Next) => {
 // ── Catalogue (public) ──────────────────────────────────────────────────────
 app.get('/catalog', async c => {
   const [inst, fac, prog] = await Promise.all([
-    c.env.DB.prepare('SELECT id,name,short_name,city FROM institutions ORDER BY name').all(),
-    c.env.DB.prepare('SELECT id,institution_id,name,short_name FROM faculties ORDER BY name').all(),
-    c.env.DB.prepare('SELECT p.id,p.faculty_id,p.name,p.level,(SELECT COUNT(*) FROM subjects s WHERE s.programme_id=p.id) subjects FROM programmes p ORDER BY p.name').all(),
+    c.env.DB.prepare('SELECT id,name,short_name,city,email_domain FROM institutions WHERE active=1 ORDER BY name').all(),
+    c.env.DB.prepare('SELECT id,institution_id,name,short_name FROM faculties WHERE active=1 ORDER BY name').all(),
+    c.env.DB.prepare('SELECT p.id,p.faculty_id,p.name,p.level,(SELECT COUNT(*) FROM subjects s WHERE s.programme_id=p.id) subjects FROM programmes p WHERE p.active=1 ORDER BY p.name').all(),
   ]);
   return c.json({ institutions: inst.results, faculties: fac.results, programmes: prog.results });
 });
@@ -172,6 +173,7 @@ app.get('/catalog/programmes/:id', async c => {
   return c.json({ programme: prog, plos: plos.results, subjects: subjects.results.map(s => ({ ...s, clos: JSON.parse(s.clos || '[]'), plo_codes: JSON.parse(s.plo_codes || '[]'), skills: JSON.parse(s.skills || '[]') })) });
 });
 
+app.use('/org/*', requireUser);
 app.use('/me', requireUser);
 app.use('/me/*', requireUser);
 app.use('/talent', requireUser, requireRecruiter);
@@ -853,6 +855,8 @@ app.post('/admin/programmes', async c => {
   await c.env.DB.prepare('INSERT INTO plos (programme_id,code,domain,description,sort_order) SELECT ?,code,domain,description,sort_order FROM plos WHERE programme_id=(SELECT MIN(id) FROM programmes)').bind(pid).run();
   return c.json({ id: pid }, 201);
 });
+
+app.route('/org', org);
 
 app.all('*', c => c.json({ error: 'Not found' }, 404));
 

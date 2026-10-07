@@ -1,3 +1,4 @@
+import { useAuth } from '../lib/auth';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Check, Sparkles } from 'lucide-react';
@@ -5,7 +6,7 @@ import { api } from '../lib/api';
 import { useApi } from '../lib/hooks';
 import { Card, Field, Notice, PageHead, Spinner, Tag } from '../components/ui';
 
-interface Catalog { institutions: { id: number; name: string; short_name: string }[]; faculties: { id: number; institution_id: number; name: string }[]; programmes: { id: number; faculty_id: number; name: string; subjects: number }[] }
+interface Catalog { institutions: { id: number; name: string; short_name: string; email_domain?: string | null }[]; faculties: { id: number; institution_id: number; name: string; short_name?: string | null }[]; programmes: { id: number; faculty_id: number; name: string; subjects: number }[] }
 interface ProgrammeDetail { programme: { id: number; name: string; institution: string }; plos: { code: string; domain: string }[]; subjects: { id: number; name: string; year: number; plo_codes: string[]; skills: string[] }[] }
 
 export function Onboarding() {
@@ -87,23 +88,7 @@ export function Onboarding() {
         <Card>
           {cat.loading ? <Spinner label="Loading programmes" /> : (
             <div className="stack">
-              {cat.data?.institutions.map(i => (
-                <div key={i.id} className="stack">
-                  <p className="eyebrow">{i.name}</p>
-                  {cat.data!.faculties.filter(f => f.institution_id === i.id).map(f => (
-                    <div key={f.id} className="stack-sm">
-                      <p className="muted small">{f.name}</p>
-                      <div className="choices">
-                        {cat.data!.programmes.filter(p => p.faculty_id === f.id).map(p => (
-                          <button key={p.id} type="button" className={`choice ${programmeId === p.id ? 'is-on' : ''}`} onClick={() => setProgrammeId(p.id)} aria-pressed={programmeId === p.id}>
-                            <b>{p.name}</b><span>{p.subjects ? `${p.subjects} subjects mapped` : 'Learning outcomes only'}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ))}
+              <UniPicker cat={cat.data!} value={programmeId} onChange={setProgrammeId} />
               <div className="grid-3">
                 <Field label="Start year"><input type="number" value={years.start} onChange={e => setYears({ ...years, start: Number(e.target.value) })} /></Field>
                 <Field label="Expected graduation"><input type="number" value={years.end} onChange={e => setYears({ ...years, end: Number(e.target.value) })} /></Field>
@@ -162,6 +147,43 @@ export function Onboarding() {
           <div className="row end span-2"><Link className="btn btn--ghost" to="/app">Skip to dashboard</Link></div>
         </div>
       )}
+    </div>
+  );
+}
+
+function UniPicker({ cat, value, onChange }: { cat: Catalog; value: number | null; onChange: (id: number) => void }) {
+  const { user } = useAuth();
+  const domain = user?.email.split('@')[1]?.toLowerCase() ?? '';
+  const guess = cat.institutions.find(i => i.email_domain && (domain === i.email_domain || domain.endsWith(`.${i.email_domain}`)));
+  const progFac = cat.programmes.find(p => p.id === value)?.faculty_id;
+  const [uni, setUni] = useState<number | null>(() => (progFac ? cat.faculties.find(f => f.id === progFac)?.institution_id : null) ?? guess?.id ?? (cat.institutions.length === 1 ? cat.institutions[0].id : null));
+  const [fac, setFac] = useState<number | 'all'>(progFac ?? 'all');
+  const [q, setQ] = useState('');
+  const facs = cat.faculties.filter(f => f.institution_id === uni);
+  const progs = cat.programmes.filter(p => facs.some(f => f.id === p.faculty_id) && (fac === 'all' || p.faculty_id === fac) && (!q || p.name.toLowerCase().includes(q.toLowerCase())));
+  return (
+    <div className="stack">
+      <Field label="University">
+        <select value={uni ?? ''} onChange={e => { setUni(Number(e.target.value) || null); setFac('all'); }}>
+          <option value="">Choose your university</option>
+          {cat.institutions.map(i => <option key={i.id} value={i.id}>{i.name}{i.short_name ? ` (${i.short_name})` : ''}</option>)}
+        </select>
+      </Field>
+      {uni && <>
+        <div className="chips fac-chips">
+          <button type="button" className={`chip ${fac === 'all' ? 'chip--on' : ''}`} onClick={() => setFac('all')}>All faculties</button>
+          {facs.filter(f => cat.programmes.some(p => p.faculty_id === f.id)).map(f => <button type="button" key={f.id} className={`chip ${fac === f.id ? 'chip--on' : ''}`} onClick={() => setFac(f.id)} title={f.name}>{f.short_name ?? f.name}</button>)}
+        </div>
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search your degree, e.g. software, cloud, game" aria-label="Search degree" />
+        <div className="choices">
+          {progs.map(p => (
+            <button key={p.id} type="button" className={`choice ${value === p.id ? 'is-on' : ''}`} onClick={() => onChange(p.id)} aria-pressed={value === p.id}>
+              <b>{p.name}</b><span>{cat.faculties.find(f => f.id === p.faculty_id)?.short_name} · {p.subjects ? `${p.subjects} subjects mapped` : 'Learning outcomes only'}</span>
+            </button>
+          ))}
+          {!progs.length && <p className="muted small">No degree matches. Ask your faculty to add it in PathForward.</p>}
+        </div>
+      </>}
     </div>
   );
 }
