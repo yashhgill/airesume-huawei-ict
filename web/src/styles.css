@@ -203,7 +203,7 @@ input[type="checkbox"] { width: auto; accent-color: var(--ink); }
 .main { min-width: 0; padding: 30px 40px 80px 12px; }
 .topbar { display: none; }
 .tabbar { display: none; }
-.page { display: grid; gap: 22px; max-width: 1160px; animation: fadein .3s ease both; }
+.page { display: grid; gap: 22px; max-width: 1160px; animation: fadein .3s ease backwards; }
 @keyframes fadein { from { opacity: 0; transform: translateY(4px); } }
 .pagehead { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
 .pagehead__sub { color: var(--ink-2); margin-top: 8px; max-width: 64ch; }
@@ -796,4 +796,15 @@ img.avatar { object-fit: cover; }
   .move b { font-size: 15px; }
   .iv__hist li { grid-template-columns: 1fr auto; }
   .empty { padding: 36px 16px; }
+}
+/* Modals: portalled to <body>, always above the app bars */
+.modal { z-index: 100; }
+.modal__body { display: grid; gap: 16px; }
+@media (max-width: 600px) {
+  .modal__card { padding-top: 0; gap: 0; }
+  .modal__head { position: sticky; top: 0; z-index: 2; background: var(--surface); padding: 14px 0 12px; margin-bottom: 4px; }
+  .modal__head::before { content: ''; position: absolute; top: 6px; left: 50%; width: 40px; height: 4px; margin-left: -20px; border-radius: 99px; background: var(--line-2); }
+  .modal__head h2 { margin-top: 8px; }
+  .modal__body { padding-bottom: 4px; }
+  .modal__body > .btn--primary:last-child, .modal__body form > .btn--primary:last-child { position: sticky; bottom: 0; box-shadow: 0 -12px 18px 6px var(--surface); }
 }
