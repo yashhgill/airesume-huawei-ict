@@ -879,3 +879,11 @@ img.avatar { object-fit: cover; }
   .toolbar { flex-wrap: wrap; }
   .toolbar input { flex: 1 1 100%; }
 }
+
+/* While a modal is open, the app bars step out entirely (iOS paints backdrop-filter bars over fixed layers) */
+html.modal-open .topbar, html.modal-open .tabbar { visibility: hidden; }
+.modal { isolation: isolate; transform: translateZ(0); }
+@media (max-width: 600px) {
+  .modal { height: 100dvh; }
+  .modal__card { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+}

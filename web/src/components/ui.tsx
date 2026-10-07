@@ -67,7 +67,15 @@ export function Score({ value, size = 88, label }: { value: number; size?: numbe
 
 export function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
   useEffect(() => { const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose(); window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [onClose]);
-  useEffect(() => { const prev = document.body.style.overflow; document.body.style.overflow = 'hidden'; return () => { document.body.style.overflow = prev; }; }, []);
+  useEffect(() => {
+    // iOS Safari ignores overflow:hidden on body and paints blurred sticky bars above fixed layers,
+    // so pin the page in place and hide the app bars while a modal is open.
+    const y = window.scrollY, b = document.body.style, html = document.documentElement;
+    const prev = { position: b.position, top: b.top, width: b.width, overflow: b.overflow };
+    html.classList.add('modal-open');
+    Object.assign(b, { position: 'fixed', top: `-${y}px`, width: '100%', overflow: 'hidden' });
+    return () => { html.classList.remove('modal-open'); Object.assign(b, prev); window.scrollTo(0, y); };
+  }, []);
   // Rendered at <body> so no page transform/stacking context can trap it under the app bars
   return createPortal(
     <div className="modal" role="dialog" aria-modal="true" aria-label={title} onMouseDown={e => e.target === e.currentTarget && onClose()}>
