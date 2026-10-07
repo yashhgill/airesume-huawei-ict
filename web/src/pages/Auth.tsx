@@ -45,21 +45,63 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   );
 }
 
-/** Landing spot after LinkedIn sends the user back: #token=… or #error=… */
+/** Landing spot after LinkedIn sends the user back: #token=…, #pending=… or #error=… */
 export function LinkedInDone() {
   const { useToken } = useAuth();
   const nav = useNavigate();
   const [err, setErr] = useState('');
+  const [pending, setPending] = useState<{ token: string; email: string; name: string } | null>(null);
+  const [mode, setMode] = useState<'choose' | 'attach'>('choose');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
   useEffect(() => {
     const h = new URLSearchParams(window.location.hash.slice(1));
+    history.replaceState(null, '', '/auth/linkedin');
     if (h.get('error')) { setErr(h.get('error')!); return; }
+    if (h.get('pending')) { setPending({ token: h.get('pending')!, email: h.get('email') ?? '', name: h.get('name') ?? '' }); return; }
     const t = h.get('token');
     if (!t) { setErr('Sign-in did not complete.'); return; }
     useToken(t);
-    history.replaceState(null, '', '/auth/linkedin');
     nav(h.get('linked') === '1' ? '/app/profile?tab=import' : h.get('new') === '1' ? '/app/start' : '/app', { replace: true });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const finish = async (m: 'attach' | 'new', e?: React.FormEvent) => {
+    e?.preventDefault(); setBusy(true); setErr('');
+    try {
+      const r = await api<{ token: string; fresh: boolean }>('/auth/linkedin/finish', { body: { pending: pending!.token, mode: m, email, password } });
+      useToken(r.token);
+      nav(r.fresh ? '/app/start' : '/app', { replace: true });
+    } catch (x) { setErr((x as Error).message); } finally { setBusy(false); }
+  };
+
+  if (pending) return (
+    <div className="auth">
+      {mode === 'choose' ? (
+        <div className="auth__card">
+          <Brand />
+          <h1>Hi {pending.name.split(' ')[0] || 'there'}</h1>
+          <p className="muted">Your LinkedIn uses <b>{pending.email}</b>, and no PathForward account has that email yet.</p>
+          <p className="muted">Signed up with your university email? Link LinkedIn to that account so your curriculum, resumes and coach history stay in one place.</p>
+          <Notice>{err}</Notice>
+          <button className="btn btn--primary btn--wide" onClick={() => setMode('attach')}>I already have an account</button>
+          <button className="btn btn--ghost btn--wide" onClick={() => finish('new')} disabled={busy}>{busy ? 'Creating…' : `Create a new account with ${pending.email}`}</button>
+        </div>
+      ) : (
+        <form className="auth__card" onSubmit={e => finish('attach', e)}>
+          <Brand />
+          <h1>Link LinkedIn to your account</h1>
+          <p className="muted">Sign in once with the email you registered with, for example your student email. After this, Continue with LinkedIn opens this account directly.</p>
+          <Field label="Email"><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="b0xxxxxxxx@student.utem.edu.my" autoComplete="email" required /></Field>
+          <Field label="Password"><input type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" required /></Field>
+          <Notice>{err}</Notice>
+          <button className="btn btn--primary btn--wide" disabled={busy}>{busy ? 'Linking…' : 'Link and sign in'}</button>
+          <button type="button" className="btn btn--text" onClick={() => setMode('choose')}>Back</button>
+        </form>
+      )}
+    </div>
+  );
   return <div className="auth"><div className="auth__card"><Brand />{err ? <><Notice>{err}</Notice><Link className="btn btn--primary" to="/login">Back to sign in</Link></> : <p className="muted">Signing you in with LinkedIn…</p>}</div></div>;
 }
 

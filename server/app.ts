@@ -97,6 +97,34 @@ app.get('/auth/linkedin', async c => {
   return c.redirect(u.toString());
 });
 
+// Finish a LinkedIn sign-in that matched no account: attach it to an existing account
+// (e.g. a student's university email) or create a new account with the LinkedIn email.
+app.post('/auth/linkedin/finish', async c => {
+  const b = await c.req.json().catch(() => ({}));
+  const p = await verifyJwt<{ k: string; sub: string; name: string; email: string; picture: string | null }>(String(b.pending ?? ''), secret(c.env));
+  if (!p || p.k !== 'lip') bad('This LinkedIn sign-in expired. Please continue with LinkedIn again.', 401);
+  const db = c.env.DB;
+  type U = { id: string; name: string; email: string; role: string; password_hash: string; must_change_password: number };
+  let user: U | null;
+  let fresh = false;
+  if (b.mode === 'attach') {
+    const email = str(b.email, 160).toLowerCase();
+    user = await db.prepare('SELECT id,name,email,role,password_hash,must_change_password FROM users WHERE email=?').bind(email).first<U>();
+    if (!user || !(await verifyPassword(String(b.password ?? ''), user.password_hash))) bad('Email or password is incorrect.', 401);
+  } else {
+    if (await db.prepare('SELECT 1 FROM users WHERE email=?').bind(p!.email).first()) bad('An account with this email already exists. Sign in to it instead.', 409);
+    const id = newId(), name = p!.name || p!.email.split('@')[0];
+    const role = isAdminEmail(c.env, p!.email) ? 'admin' : 'student';
+    await db.prepare('INSERT INTO users (id,name,email,password_hash,role) VALUES (?,?,?,?,?)').bind(id, name, p!.email, await hashPassword(crypto.randomUUID()), role).run();
+    user = { id, name, email: p!.email, role, password_hash: '', must_change_password: 0 }; fresh = true;
+  }
+  await db.prepare('UPDATE users SET linkedin_sub=NULL WHERE linkedin_sub=? AND id<>?').bind(p!.sub, user!.id).run();
+  await db.prepare('UPDATE users SET linkedin_sub=?, avatar_url=COALESCE(?,avatar_url) WHERE id=?').bind(p!.sub, p!.picture, user!.id).run();
+  await db.prepare('INSERT INTO activity (user_id,action) VALUES (?,?)').bind(user!.id, fresh ? 'register.linkedin' : 'link.linkedin').run();
+  const token = await signJwt({ sub: user!.id, email: user!.email, role: user!.role, name: user!.name }, secret(c.env));
+  return c.json({ token, fresh, mustChangePassword: !!user!.must_change_password });
+});
+
 app.get('/auth/linkedin/callback', async c => {
   const fail = (m: string) => c.redirect(`/auth/linkedin#error=${encodeURIComponent(m)}`);
   const st = await verifyJwt<{ k: string; link: string | null }>(c.req.query('state') ?? '', secret(c.env));
@@ -112,6 +140,7 @@ app.get('/auth/linkedin/callback', async c => {
   type U = { id: string; name: string; email: string; role: string };
   let user: U | null = null;
   if (st.link) {
+    await db.prepare('UPDATE users SET linkedin_sub=NULL WHERE linkedin_sub=? AND id<>?').bind(ui.sub, st.link).run();
     await db.prepare('UPDATE users SET linkedin_sub=?, avatar_url=COALESCE(?,avatar_url) WHERE id=?').bind(ui.sub, ui.picture ?? null, st.link).run();
     user = await db.prepare('SELECT id,name,email,role FROM users WHERE id=?').bind(st.link).first<U>();
   }
@@ -120,15 +149,14 @@ app.get('/auth/linkedin/callback', async c => {
     user = await db.prepare('SELECT id,name,email,role FROM users WHERE email=?').bind(ui.email.toLowerCase()).first<U>();
     if (user) await db.prepare('UPDATE users SET linkedin_sub=?, avatar_url=COALESCE(?,avatar_url) WHERE id=?').bind(ui.sub, ui.picture ?? null, user.id).run();
   }
-  let fresh = false;
   if (!user) {
+    // No account matches this LinkedIn. Students often use a personal email on LinkedIn but a
+    // university email here, so ask before creating a second account.
     if (!ui.email) return fail('Your LinkedIn account has no email we can use.');
-    const id = newId(), email = ui.email.toLowerCase(), name = ui.name || email.split('@')[0];
-    const role = isAdminEmail(c.env, email) ? 'admin' : 'student';
-    await db.prepare('INSERT INTO users (id,name,email,password_hash,role,linkedin_sub,avatar_url) VALUES (?,?,?,?,?,?,?)')
-      .bind(id, name, email, await hashPassword(crypto.randomUUID()), role, ui.sub, ui.picture ?? null).run();
-    user = { id, name, email, role }; fresh = true;
+    const pending = await signJwt({ k: 'lip', sub: ui.sub, name: ui.name ?? '', email: ui.email.toLowerCase(), picture: ui.picture ?? null }, secret(c.env), 900);
+    return c.redirect(`/auth/linkedin#pending=${pending}&email=${encodeURIComponent(ui.email.toLowerCase())}&name=${encodeURIComponent(ui.name ?? '')}`);
   }
+  const fresh = false;
   await db.prepare('INSERT INTO activity (user_id,action) VALUES (?,?)').bind(user!.id, fresh ? 'register.linkedin' : 'login.linkedin').run();
   const token = await signJwt({ sub: user!.id, email: user!.email, role: user!.role, name: user!.name }, secret(c.env));
   return c.redirect(`/auth/linkedin#token=${token}&new=${fresh ? 1 : 0}&linked=${st.link ? 1 : 0}`);
