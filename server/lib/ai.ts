@@ -35,7 +35,7 @@ export async function careerInsights(env: Env, p: Profile) {
   return llmJson<{ roles: { title: string; match: number; why: string; matching: string[]; missing: string[]; salary_myr: string }[]; certifications: { name: string; provider: string; why: string }[]; learning_path: { step: string; resource: string }[] }>(env, {
     task: 'career', input: p, temperature: 0.3,
     system: `You are a Malaysian graduate career advisor. Be realistic about entry-level roles in Malaysia. ${HONEST}`,
-    user: `Candidate profile:\n${profileBrief(p)}\n\nSuggest 5 entry-level job titles that fit, each with match 0-100, one-sentence why, matching skills (from the profile) and missing skills to learn, and a typical monthly salary range in MYR for fresh graduates in Malaysia. Then suggest 3 certifications (prefer Huawei HCIA/HCIP where relevant, plus vendor-neutral options) and a 4-step learning path.\nReturn {"roles":[{"title","match","why","matching":[],"missing":[],"salary_myr"}],"certifications":[{"name","provider","why"}],"learning_path":[{"step","resource"}]}`,
+    user: `Candidate profile:\n${profileBrief(p)}\n\nSuggest 5 entry-level job titles that fit, each with match 0-100, one-sentence why, matching skills (from the profile) and missing skills to learn, and a typical monthly salary range in MYR for fresh graduates in Malaysia. Then suggest 6 real, currently offered certifications that fit these roles, drawn from ANY provider (AWS, Microsoft, Google Cloud, Huawei, Cisco, CompTIA, Linux Foundation, Oracle, Red Hat, ISC2, Fortinet, HashiCorp, etc.) — do not favour any single vendor. Include at least 2 that are completely free to earn (e.g. free exams/badges such as ISC2 CC, Fortinet FCF/FCA, Cisco NetAcad badges, Google/Microsoft free skill badges) and mark the rest as paid with the approximate exam fee. Then a 4-step learning path.\nReturn {"roles":[{"title","match","why","matching":[],"missing":[],"salary_myr"}],"certifications":[{"name","provider","why","cost":"free|paid","price":"e.g. Free or USD 100","level":"beginner|associate|professional","hours":"typical prep hours","url":"official page"}],"learning_path":[{"step","resource"}]}`,
   });
 }
 
@@ -108,7 +108,7 @@ ${extra.lastInterview ? `Last mock interview: ${extra.lastInterview}` : ''}
 How to coach:
 - Be warm, direct and specific to THIS student. Refer to their actual subjects, skills and projects by name.
 - Keep replies short: 2-5 sentences or a tight list. End with one concrete next step when it helps.
-- Use Malaysian context (JobStreet, Hiredly, LinkedIn, MDEC, TalentCorp, typical fresh-graduate salaries in RM, Huawei HCIA certifications).
+- Use Malaysian context (JobStreet, Hiredly, LinkedIn, MDEC, TalentCorp, typical fresh-graduate salaries in RM, entry-level certifications from any vendor, including free ones).
 - Never invent facts about the student. If you need information, ask one question.
 - When a PathForward feature fits, name it: Resumes, ATS check, Job search, Mock interview, Learning plan, Competency map.
 - Plain text with simple markdown (bold, lists). No headings.`;
@@ -139,10 +139,10 @@ export interface PlanContent {
   weeks: { week: number; theme: string; tasks: { title: string; kind: 'learn' | 'build' | 'certify' | 'apply' | 'practice'; resource: string; minutes: number; done?: boolean }[] }[];
 }
 
-export async function learningPlan(env: Env, p: Profile, opts: { role: string; weeks: number; hours: number; gaps: string[] }) {
+export async function learningPlan(env: Env, p: Profile, opts: { role: string; weeks: number; hours: number; gaps: string[]; cert?: string }) {
   return llmJson<PlanContent>(env, {
     task: 'plan', input: opts, temperature: 0.4, maxTokens: 3000, speed: 'smart',
-    system: `You design realistic self-study plans for Malaysian university students juggling classes. Prefer free, well-known resources (Huawei Talent online courses, Huawei Cloud docs, freeCodeCamp, Coursera audit, official documentation, YouTube channels) and name them exactly. ${HONEST}`,
-    user: `Candidate profile:\n${profileBrief(p)}\n\nTarget role: ${opts.role}\nKnown gaps: ${opts.gaps.join(', ') || 'work them out from the profile'}\nDuration: ${opts.weeks} weeks, about ${opts.hours} hours per week.\n\nBuild a week-by-week plan that closes the gaps and ends with something the student can show (a project, a certification, applications sent). 3-4 tasks per week; minutes per task must add up to roughly the weekly hours. kinds: learn, build, practice, certify, apply. Include one portfolio project built across several weeks and, where it fits, a Huawei HCIA certification.\nReturn {"summary":"2 sentences","role":"${opts.role}","certification":{"name","why"},"weeks":[{"week":1,"theme","tasks":[{"title","kind","resource","minutes"}]}]}`,
+    system: `You design realistic self-study plans for Malaysian university students juggling classes. Prefer free, well-known resources (official vendor training such as AWS Skill Builder, Microsoft Learn, Google Cloud Skills Boost, Huawei Talent, Cisco NetAcad; freeCodeCamp, Coursera audit, official documentation, YouTube channels) and name them exactly. ${HONEST}`,
+    user: `Candidate profile:\n${profileBrief(p)}\n\nTarget role: ${opts.role}\nKnown gaps: ${opts.gaps.join(', ') || 'work them out from the profile'}\nDuration: ${opts.weeks} weeks, about ${opts.hours} hours per week.\n\nBuild a week-by-week plan that closes the gaps and ends with something the student can show (a project, a certification, applications sent). 3-4 tasks per week; minutes per task must add up to roughly the weekly hours. kinds: learn, build, practice, certify, apply. Include one portfolio project built across several weeks and ${opts.cert ? `prepares for the certification the student chose: ${opts.cert}` : 'where it fits, the single best-fit certification from any vendor (prefer a free one if it is equally useful)'}.\nReturn {"summary":"2 sentences","role":"${opts.role}","certification":{"name","why"},"weeks":[{"week":1,"theme","tasks":[{"title","kind","resource","minutes"}]}]}`,
   });
 }

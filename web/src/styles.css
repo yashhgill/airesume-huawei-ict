@@ -887,3 +887,23 @@ html.modal-open .topbar, html.modal-open .tabbar { visibility: hidden; }
   .modal { height: 100dvh; }
   .modal__card { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 }
+
+/* Career paths: keep long chips and titles inside their cards */
+.roles { grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); }
+.role { min-width: 0; overflow-wrap: anywhere; }
+.role__head { align-items: baseline; }
+.role__head h3 { min-width: 0; }
+.role__head b { flex: none; }
+.role .chips { min-width: 0; }
+.role .tag { white-space: normal; max-width: 100%; line-height: 1.35; }
+.role > .row { margin-top: auto; flex-wrap: wrap; }
+.certs { display: grid; gap: 14px; margin: 8px 0 18px; }
+.certs__head { display: flex; justify-content: space-between; align-items: end; gap: 12px; flex-wrap: wrap; }
+.certs__head h2 { margin: 2px 0 4px; }
+.certs__head p.small { max-width: 60ch; }
+.certs__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 12px; }
+.cert { display: grid; gap: 8px; align-content: start; min-width: 0; padding: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.cert__top { display: flex; justify-content: space-between; align-items: center; color: var(--accent-strong); }
+.cert h3 { font-size: 16px; overflow-wrap: anywhere; }
+.cert > p:not(.small) { font-size: 14px; color: var(--ink-2); }
+.cert .row { flex-wrap: wrap; margin-top: 4px; }

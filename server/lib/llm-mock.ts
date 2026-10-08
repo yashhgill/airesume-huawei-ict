@@ -9,7 +9,7 @@ export function mockLlm(task: string, input: any): unknown {
     case 'infer_skills':
       return { skills: [{ name: 'Teamwork', category: 'Soft', level: 3, evidence: 'Group projects' }, { name: 'Technical Writing', category: 'Soft', level: 3, evidence: 'Final Year Project' }] };
     case 'career':
-      return { roles: [{ title: 'Cloud Support Engineer', match: 78, why: 'Strong cloud and Linux coursework.', matching: ['Cloud Computing', 'Linux'], missing: ['Terraform'], salary_myr: 'RM 3,500 – 4,500' }], certifications: [{ name: 'HCIA-Cloud Computing', provider: 'Huawei', why: 'Validates cloud fundamentals.' }], learning_path: [{ step: 'Build and deploy a serverless API', resource: 'Cloudflare Workers docs' }] };
+      return { roles: [{ title: 'Cloud Support Engineer', match: 78, why: 'Strong cloud and Linux coursework.', matching: ['Cloud Computing', 'Linux'], missing: ['Terraform'], salary_myr: 'RM 3,500 – 4,500' }], certifications: [{ name: 'AWS Certified Cloud Practitioner', provider: 'AWS', why: 'Validates cloud fundamentals.', cost: 'paid', price: 'USD 100', level: 'beginner', hours: '20-30', url: 'https://aws.amazon.com/certification/certified-cloud-practitioner/' }, { name: 'Certified in Cybersecurity (CC)', provider: 'ISC2', why: 'Free entry security credential.', cost: 'free', price: 'Free', level: 'beginner', hours: '15-25', url: 'https://www.isc2.org/certifications/cc' }], learning_path: [{ step: 'Build and deploy a serverless API', resource: 'Cloudflare Workers docs' }] };
     case 'resume': {
       const p = input.p;
       return {

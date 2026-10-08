@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Award, Check, RefreshCw, Route } from 'lucide-react';
 import { api } from '../lib/api';
 import { useApi } from '../lib/hooks';
@@ -9,7 +10,8 @@ interface Plan { id: string; role: string; created_at: string; content: { summar
 
 export function PlanPage() {
   const plan = useApi<Plan | null>('/plan');
-  const [editing, setEditing] = useState(false);
+  const [qs0] = useSearchParams();
+  const [editing, setEditing] = useState(!!qs0.get('role'));
 
   if (plan.loading && !plan.data) return <div className="page"><Spinner label="Loading your plan" /></div>;
   const p = plan.data;
@@ -60,14 +62,16 @@ export function PlanPage() {
 }
 
 function Builder({ onDone, onCancel }: { onDone: () => void; onCancel?: () => void }) {
-  const [role, setRole] = useState('');
+  const [qs] = useSearchParams();
+  const [role, setRole] = useState(qs.get('role') ?? '');
+  const [cert, setCert] = useState(qs.get('cert') ?? '');
   const [weeks, setWeeks] = useState(6);
   const [hours, setHours] = useState(6);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const go = async () => {
     setBusy(true); setErr('');
-    try { await api('/plan', { body: { role, weeks, hours } }); onDone(); }
+    try { await api('/plan', { body: { role, weeks, hours, cert } }); onDone(); }
     catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   };
   return (
@@ -76,6 +80,7 @@ function Builder({ onDone, onCancel }: { onDone: () => void; onCancel?: () => vo
       <Card>
         <Field label="Role you are working towards"><input value={role} onChange={e => setRole(e.target.value)} placeholder="e.g. Cloud Engineer, Data Analyst, Software Developer" /></Field>
         <div className="chips">{['Cloud Engineer', 'Data Analyst', 'Software Developer', 'Network Engineer', 'Cybersecurity Analyst'].map(r => <button key={r} className={`chip ${role === r ? 'chip--on' : ''}`} onClick={() => setRole(r)}>{r}</button>)}</div>
+        <Field label="Certification to aim for (optional)" hint="Leave empty and the plan picks the best fit from any provider."><input value={cert} onChange={e => setCert(e.target.value)} placeholder="e.g. AWS Cloud Practitioner, ISC2 CC, Azure AZ-900" /></Field>
         <div className="grid-2">
           <Field label={`Length: ${weeks} weeks`}><input type="range" min={2} max={12} value={weeks} onChange={e => setWeeks(+e.target.value)} /></Field>
           <Field label={`Time: ${hours} hours a week`}><input type="range" min={2} max={20} value={hours} onChange={e => setHours(+e.target.value)} /></Field>
