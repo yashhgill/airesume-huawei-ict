@@ -8,7 +8,7 @@ import { clip } from './text';
 export interface ResumeContent {
   name: string;
   headline: string;
-  contact: { email?: string; phone?: string; location?: string; linkedin?: string; github?: string; website?: string };
+  contact: { email?: string; phone?: string; location?: string; linkedin?: string; github?: string; website?: string; profile?: string };
   summary: string;
   skills: { group: string; items: string[] }[];
   experience: { title: string; org: string; period: string; bullets: string[] }[];
@@ -43,7 +43,7 @@ export async function careerInsights(env: Env, p: Profile) {
   });
 }
 
-export async function generateResume(env: Env, p: Profile, opts: { targetRole: string; tone: string; job?: JobLite; plos: { code: string; domain: string; evidence: string[] }[] }) {
+export async function generateResume(env: Env, p: Profile, opts: { profileUrl?: string; targetRole: string; tone: string; job?: JobLite; plos: { code: string; domain: string; evidence: string[] }[] }) {
   const jobPart = opts.job ? `\nTailor it to this job (mirror its keywords where the profile genuinely supports them):\n${opts.job.title} at ${opts.job.company ?? ''}\n${clip(opts.job.description, 2500)}` : '';
   const out = await llmJson<Omit<ResumeContent, 'name' | 'contact' | 'education' | 'certifications' | 'competencies'> & { competencies?: ResumeContent['competencies'] }>(env, {
     task: 'resume', input: { p, opts }, temperature: 0.35, maxTokens: 2500,
@@ -53,7 +53,7 @@ export async function generateResume(env: Env, p: Profile, opts: { targetRole: s
   const content: ResumeContent = {
     name: p.user.name,
     headline: out.headline || opts.targetRole,
-    contact: { email: p.user.email, phone: p.user.phone ?? undefined, location: p.user.location ?? undefined, linkedin: p.user.linkedin ?? undefined, github: p.user.github ?? undefined, website: p.user.website ?? undefined },
+    contact: { email: p.user.email, phone: p.user.phone ?? undefined, location: p.user.location ?? undefined, linkedin: p.user.linkedin ?? undefined, github: p.user.github ?? undefined, website: p.user.website ?? undefined, profile: opts.profileUrl },
     summary: out.summary ?? '',
     skills: out.skills ?? [],
     experience: out.experience ?? [],

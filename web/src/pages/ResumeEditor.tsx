@@ -76,6 +76,14 @@ export function ResumeEditor() {
           <input aria-label="GitHub" placeholder="github.com/…" value={c.github ?? ''} onChange={e => setC({ github: e.target.value })} />
           <input aria-label="Website" placeholder="Portfolio / website" value={c.website ?? ''} onChange={e => setC({ website: e.target.value })} />
         </div>
+        <Field label="PathForward profile link" hint="Recruiters click it to see your skills with evidence.">
+          <div className="row nowrap">
+            <input value={c.profile ?? ''} onChange={e => setC({ profile: e.target.value })} placeholder="Publish your profile first" />
+            <button type="button" className="btn btn--ghost btn--sm" onClick={async () => {
+              try { const d = await api<{ enabled: boolean; url: string | null }>('/me/public'); if (d.enabled && d.url) setC({ profile: d.url }); else setErr('Publish your profile first: Profile → Public profile.'); } catch (x) { setErr((x as Error).message); }
+            }}>Use mine</button>
+          </div>
+        </Field>
       </fieldset>
       <Group hidden={hidden} toggle={toggle} k="summary" label="Profile summary">
         <textarea rows={5} value={r.summary} onChange={e => update({ summary: e.target.value })} />

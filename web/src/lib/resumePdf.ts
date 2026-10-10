@@ -54,6 +54,16 @@ export async function resumePdf(r: ResumeContent): Promise<Blob> {
   text(r.headline, 12, { color: ACC, bold: true, gap: 4 });
   const c = r.contact ?? {};
   text([c.email, c.phone, c.location, c.linkedin, c.github, c.website].filter(Boolean).join('  |  '), 9.5, { color: SOFT, gap: 2 });
+  if (c.profile) {
+    const url = c.profile.startsWith('http') ? c.profile : `https://${c.profile}`;
+    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9.5); pdf.setTextColor(...SOFT);
+    const lead = 'Verified skills profile: ';
+    room(13); pdf.text(lead, M, y + 9.5);
+    const lw = pdf.getTextWidth(lead);
+    pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...ACC);
+    pdf.textWithLink(clean(url.replace(/^https?:\/\//, '')), M + lw, y + 9.5, { url });
+    y += 15;
+  }
   y += 4; pdf.setDrawColor(...INK); pdf.setLineWidth(1.2); pdf.line(M, y, W - M, y); y += 6;
 
   if (on('summary') && r.summary?.trim()) { heading('Profile'); text(r.summary, 10.5, { color: INK }); }

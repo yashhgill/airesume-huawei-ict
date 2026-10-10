@@ -4,7 +4,8 @@ import type { ResumeContent } from '../lib/types';
 export function ResumeView({ r, template }: { r: ResumeContent; template: string }) {
   const hidden = new Set(r.hidden ?? []);
   const on = (k: string) => !hidden.has(k);
-  const contact = [r.contact.email, r.contact.phone, r.contact.location, r.contact.linkedin, r.contact.github, r.contact.website].filter(Boolean);
+  const contact = [r.contact.email, r.contact.phone, r.contact.location, r.contact.linkedin, r.contact.github, r.contact.website].filter(Boolean) as string[];
+  const linkOf = (x: string) => (x.includes('@') && !x.includes('/') ? `mailto:${x}` : /^(https?:\/\/|[\w-]+\.[\w.-]+\/)/.test(x) || /\.(com|my|dev|io|me|net|org)(\/|$)/.test(x) ? (x.startsWith('http') ? x : `https://${x}`) : null);
   const Section = ({ title, children }: { title: string; children: React.ReactNode }) => <section className="cv__sec"><h2>{title}</h2>{children}</section>;
   const Entries = ({ list }: { list: ResumeContent['experience'] }) => (
     <>{list.map((x, i) => (
@@ -57,7 +58,8 @@ export function ResumeView({ r, template }: { r: ResumeContent; template: string
       <header className="cv__head">
         <h1>{r.name}</h1>
         {r.headline && <p className="cv__headline">{r.headline}</p>}
-        <p className="cv__contact">{contact.join('  ·  ')}</p>
+        <p className="cv__contact">{contact.map((x, i) => { const l = linkOf(x); return <span key={i}>{i > 0 && '  ·  '}{l ? <a href={l}>{x}</a> : x}</span>; })}</p>
+        {r.contact.profile && <p className="cv__profile">Verified skills profile: <a href={r.contact.profile.startsWith('http') ? r.contact.profile : `https://${r.contact.profile}`}>{r.contact.profile.replace(/^https?:\/\//, '')}</a></p>}
       </header>
       {template === 'modern' ? <div className="cv__cols"><div>{main}</div><aside>{side}</aside></div> : <>{main}{side}</>}
     </article>

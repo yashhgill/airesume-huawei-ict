@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Eye, Linkedin, Plus, Sparkles, Trash2, Upload } from 'lucide-react';
+import { Copy, ExternalLink, Eye, Link2, Linkedin, Plus, Sparkles, Trash2, Upload } from 'lucide-react';
 import { readLinkedIn } from '../lib/linkedin';
 import { tokenStore } from '../lib/api';
 import { api } from '../lib/api';
@@ -70,6 +70,7 @@ function About({ p, onSaved }: { p: Profile; onSaved: () => void }) {
         </div>
       </Card>
     </div>
+    <PublicLink />
     <Card>
       <form className="form-grid" onSubmit={save}>
         <Field label="Full name"><input value={f.name} onChange={set('name')} required /></Field>
@@ -320,5 +321,42 @@ function Import({ reload }: { reload: () => void }) {
         )}
       </Card>
     </div>
+  );
+}
+
+/** The public profile page students link from their resume. */
+function PublicLink() {
+  const [st, setSt] = useState<{ enabled: boolean; slug: string | null; suggested: string; views: number; url: string | null } | null>(null);
+  const [slug, setSlug] = useState('');
+  const [err, setErr] = useState('');
+  const [msg, setMsg] = useState('');
+  useEffect(() => { api<NonNullable<typeof st>>('/me/public').then(d => { setSt(d); setSlug(d.slug ?? d.suggested); }).catch(e => setErr(e.message)); }, []);
+  if (!st) return null;
+  const origin = window.location.origin;
+  const saveIt = async (enabled: boolean) => {
+    setErr(''); setMsg('');
+    try { const r = await api<{ enabled: boolean; slug: string; url: string }>('/me/public', { method: 'PUT', body: { enabled, slug } }); setSt({ ...st, ...r }); setSlug(r.slug); setMsg(enabled ? 'Your profile is live.' : 'Your profile is private.'); }
+    catch (x) { setErr((x as Error).message); }
+  };
+  const copy = async () => { try { await navigator.clipboard.writeText(st.url ?? ''); setMsg('Link copied. Paste it into your resume or LinkedIn.'); } catch { setMsg(st.url ?? ''); } };
+  return (
+    <Card eyebrow="Public profile" title="Your PathForward link" actions={st.enabled && st.url ? <a className="btn btn--ghost btn--sm" href={st.url} target="_blank" rel="noreferrer"><ExternalLink size={14} /> View</a> : undefined}>
+      <p className="muted small">A page anyone can open from your resume: your skills with the subjects that prove them, projects, education and certifications. Your email and phone are never shown.</p>
+      <div className="publink">
+        <span className="publink__base">{origin.replace(/^https?:\/\//, '')}/p/</span>
+        <input aria-label="Your link" value={slug} onChange={e => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} maxLength={40} />
+      </div>
+      <Notice>{err}</Notice>
+      {msg && <Notice tone="ok">{msg}</Notice>}
+      <div className="row">
+        {st.enabled ? <>
+          <button className="btn btn--primary btn--sm" onClick={copy}><Copy size={14} /> Copy link</button>
+          {slug !== st.slug && <button className="btn btn--ghost btn--sm" onClick={() => saveIt(true)}>Save new link</button>}
+          <button className="btn btn--text" onClick={() => saveIt(false)}>Make private</button>
+          <span className="muted small">{st.views} view{st.views === 1 ? '' : 's'}</span>
+        </> : <button className="btn btn--primary btn--sm" onClick={() => saveIt(true)}><Link2 size={14} /> Publish my profile</button>}
+      </div>
+      {st.enabled && <p className="muted small">New resumes include this link automatically. For an existing resume, add it under Header in the resume editor.</p>}
+    </Card>
   );
 }

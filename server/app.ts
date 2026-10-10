@@ -231,6 +231,50 @@ app.put('/me/sharing', async c => {
   return c.json({ ok: true, share: !!b.share });
 });
 
+// ── Public profile (a link students put on their resume) ─────────────────────
+const RESERVED = new Set(['admin', 'api', 'app', 'login', 'register', 'p', 'print', 'auth', 'pathforward', 'help', 'about', 'support']);
+const slugify = (x: string) => x.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+const publicUrl = (c: C, slug: string) => `${new URL(c.req.url).origin}/p/${slug}`;
+
+app.get('/me/public', async c => {
+  const u = await c.env.DB.prepare('SELECT name,public_slug,public_profile,public_views FROM users WHERE id=?').bind(c.get('user').id).first<{ name: string; public_slug: string | null; public_profile: number; public_views: number }>();
+  const suggested = u!.public_slug ?? slugify(u!.name.split(/\s+a\/[lp]\s+/i)[0] || 'me');
+  return c.json({ enabled: !!u!.public_profile, slug: u!.public_slug, suggested, views: u!.public_views, url: u!.public_slug ? publicUrl(c, u!.public_slug) : null });
+});
+
+app.put('/me/public', async c => {
+  const b = await c.req.json().catch(() => ({}));
+  const slug = slugify(String(b.slug ?? ''));
+  if (slug.length < 3) bad('Your link needs at least 3 letters or numbers.');
+  if (RESERVED.has(slug)) bad('That link is reserved. Try another.');
+  const taken = await c.env.DB.prepare('SELECT 1 FROM users WHERE public_slug=? AND id<>?').bind(slug, c.get('user').id).first();
+  if (taken) bad('That link is already taken. Try adding your matric number or a year.', 409);
+  await c.env.DB.prepare('UPDATE users SET public_slug=?, public_profile=? WHERE id=?').bind(slug, b.enabled ? 1 : 0, c.get('user').id).run();
+  await log(c, b.enabled ? 'public.on' : 'public.off');
+  return c.json({ enabled: !!b.enabled, slug, url: publicUrl(c, slug) });
+});
+
+// No sign-in needed: anyone with the link sees what the student chose to publish (never email or phone)
+app.get('/public/:slug', async c => {
+  const row = await c.env.DB.prepare('SELECT id FROM users WHERE public_slug=? AND public_profile=1').bind(slugify(c.req.param('slug'))).first<{ id: string }>();
+  if (!row) bad('This profile is private or does not exist.', 404);
+  const p = await loadProfile(c.env, row!.id);
+  const comp = await competency(c.env, p);
+  await c.env.DB.prepare('UPDATE users SET public_views=public_views+1 WHERE id=?').bind(row!.id).run();
+  const edu = [...p.education].sort((a, b) => (b.end_year ?? 9999) - (a.end_year ?? 9999));
+  return c.json({
+    name: p.user.name, headline: p.user.headline, location: p.user.location, avatar_url: p.user.avatar_url,
+    links: { linkedin: p.user.linkedin, github: p.user.github, website: p.user.website },
+    education: edu.map(e => ({ qualification: e.qualification, institution: e.institution, start_year: e.start_year, end_year: e.end_year, cgpa: e.cgpa })),
+    readiness: comp.readiness,
+    plos: comp.plos.map(x => ({ code: x.code, domain: x.domain, strength: x.strength, evidence: x.evidence.slice(0, 6) })),
+    subjects: p.subjects.map(s => ({ name: s.name, code: s.code, year: s.year, skills: s.skills })),
+    skills: p.skills.map(s => ({ name: s.name, category: s.category, level: s.level, source: s.source, evidence: s.evidence })),
+    experiences: p.experiences.map(x => ({ kind: x.kind, title: x.title, organisation: x.organisation, start_date: x.start_date, end_date: x.end_date, description: x.description })),
+    certifications: p.certifications.map(x => ({ name: x.name, issuer: x.issuer, year: x.year })),
+  });
+});
+
 app.put('/me/password', async c => {
   const b = await c.req.json().catch(() => ({}));
   const next = typeof b.next === 'string' ? b.next : '';
@@ -409,7 +453,7 @@ app.post('/resumes/generate', async c => {
   if (!p.skills.length && !p.experiences.length && !p.subjects.length) bad('Your profile is empty. Add education, subjects or skills first.');
   const comp = await competency(c.env, p);
   const job: JobLite | undefined = b.job?.description ? { title: str(b.job.title, 160), company: str(b.job.company, 160), location: str(b.job.location, 120), description: str(b.job.description, 8000) } : undefined;
-  const content = await ai(c, 'ai.resume', () => generateResume(c.env, p, { targetRole, tone: str(b.tone, 30) || 'professional', job, plos: comp.plos }), targetRole);
+  const content = await ai(c, 'ai.resume', () => generateResume(c.env, p, { profileUrl: p.user.public_profile && p.user.public_slug ? publicUrl(c, p.user.public_slug) : undefined, targetRole, tone: str(b.tone, 30) || 'professional', job, plos: comp.plos }), targetRole);
   const id = newId();
   const title = str(b.title, 120) || (job ? `${job.title} · ${job.company ?? ''}` : targetRole);
   await c.env.DB.prepare('INSERT INTO resumes (id,user_id,title,target_role,template,content,job_ref) VALUES (?,?,?,?,?,?,?)')

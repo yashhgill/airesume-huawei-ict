@@ -18,6 +18,7 @@ import { CareerPage } from './pages/Career';
 import { ResumesPage } from './pages/Resumes';
 import { ResumeEditor } from './pages/ResumeEditor';
 import { PrintResume } from './pages/PrintResume';
+import { PublicProfile } from './pages/PublicProfile';
 import { AtsPage } from './pages/Ats';
 import { JobsPage } from './pages/Jobs';
 import { TrackerPage } from './pages/Tracker';
@@ -31,6 +32,7 @@ export default function App() {
       <Route path="/register" element={<AuthPage mode="register" />} />
       <Route path="/auth/linkedin" element={<LinkedInDone />} />
       <Route path="/print/resume/:id" element={<PrintResume />} />
+      <Route path="/p/:slug" element={<PublicProfile />} />
       <Route path="/app" element={<Protected />}>
         <Route index element={<Home />} />
         <Route path="start" element={<Onboarding />} />

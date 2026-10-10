@@ -14,7 +14,7 @@ export interface Competency {
 }
 export interface ResumeContent {
   name: string; headline: string;
-  contact: { email?: string; phone?: string; location?: string; linkedin?: string; github?: string; website?: string };
+  contact: { email?: string; phone?: string; location?: string; linkedin?: string; github?: string; website?: string; profile?: string };
   summary: string;
   skills: { group: string; items: string[] }[];
   experience: { title: string; org: string; period: string; bullets: string[] }[];
