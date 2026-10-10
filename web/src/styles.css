@@ -907,3 +907,21 @@ html.modal-open .topbar, html.modal-open .tabbar { visibility: hidden; }
 .cert h3 { font-size: 16px; overflow-wrap: anywhere; }
 .cert > p:not(.small) { font-size: 14px; color: var(--ink-2); }
 .cert .row { flex-wrap: wrap; margin-top: 4px; }
+
+/* Dedicated print page: only the resume, A4, light */
+.printpg { min-height: 100vh; background: var(--bg); padding: 16px; display: grid; justify-items: center; gap: 12px; align-content: start; }
+.printpg__bar { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.printpg__tip { text-align: center; max-width: 52ch; }
+.printpg__paper { max-width: 100%; overflow-x: auto; }
+.printpg__paper .cv { box-shadow: var(--shadow); }
+@media (max-width: 860px) { .printpg__paper .cv { zoom: calc((100vw - 32px) / 794px); } }
+@page { size: A4; margin: 0; }
+@media print {
+  html.print-page, html.print-page body { background: #fff !important; }
+  .printpg { padding: 0; min-height: 0; display: block; background: #fff; }
+  .printpg__paper { overflow: visible; }
+  .printpg__paper .cv, .paper-wrap .cv { zoom: 1 !important; box-shadow: none !important; margin: 0 !important; width: 210mm !important; }
+  .topbar, .tabbar, .editor__view, .side { display: none !important; }
+  .editor__body.view-edit .paper-wrap { display: block !important; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

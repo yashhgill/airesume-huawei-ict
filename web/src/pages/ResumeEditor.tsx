@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, ClipboardCheck, Mail, Plus, Printer, Save, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
 import type { ResumeContent } from '../lib/types';
@@ -10,6 +10,7 @@ interface Doc { id: string; title: string; template: string; target_role: string
 
 export function ResumeEditor() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [doc, setDoc] = useState<Doc | null>(null);
   const [dirty, setDirty] = useState(false);
   const [view, setView] = useState<'edit' | 'preview'>('edit');
@@ -59,7 +60,7 @@ export function ResumeEditor() {
         <span className="muted small">{msg || (dirty ? 'Unsaved changes' : '')}</span>
         <button className="btn btn--ghost btn--sm" onClick={() => setLetter(true)}><Mail size={16} /> Cover letter</button>
         <Link className="btn btn--ghost btn--sm" to={`/app/ats?resume=${doc.id}`}><ClipboardCheck size={16} /> ATS check</Link>
-        <button className="btn btn--ghost btn--sm" onClick={() => window.print()}><Printer size={16} /> PDF</button>
+        <button className="btn btn--ghost btn--sm" onClick={async () => { if (dirty) await save(); navigate(`/print/resume/${doc.id}`); }}><Printer size={16} /> Download PDF</button>
         <button className="btn btn--primary btn--sm" onClick={save} disabled={!dirty}><Save size={16} /> Save</button>
       </div>
       <Notice>{err}</Notice>
