@@ -925,3 +925,12 @@ html.modal-open .topbar, html.modal-open .tabbar { visibility: hidden; }
   .editor__body.view-edit .paper-wrap { display: block !important; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+/* Any print from a page that holds a resume (Ctrl+P in the editor included): print only the resume.
+   Print width is A4 (~794px) so the phone layout kicks in; override it here. */
+@media print {
+  body:has(.cv) .editor__body, body:has(.cv) .paper-wrap { display: block !important; }
+  body:has(.cv) * { visibility: hidden !important; }
+  body:has(.cv) .cv, body:has(.cv) .cv * { visibility: visible !important; }
+  body:has(.cv) .cv { position: absolute !important; left: 0; top: 0; }
+  body:has(.cv) .topbar, body:has(.cv) .tabbar, body:has(.cv) .side, body:has(.cv) .ed, body:has(.cv) .editor__bar, body:has(.cv) .editor__view { display: none !important; }
+}
