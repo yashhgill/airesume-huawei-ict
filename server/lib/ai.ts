@@ -16,6 +16,10 @@ export interface ResumeContent {
   education: { qualification: string; institution: string; period: string; details: string }[];
   certifications: { name: string; issuer: string; year: string }[];
   competencies: { code: string; domain: string; evidence: string }[];
+  awards?: string[];
+  languages?: string[];
+  /** Section keys the student chose to hide: summary, skills, experience, projects, education, certifications, awards, languages, competencies */
+  hidden?: string[];
 }
 
 const HONEST = `Rules: use ONLY facts from the candidate profile. Never invent employers, dates, grades, metrics, certifications or technologies. You may rephrase, reorder, group and tighten wording. If information is missing, leave it out.`;
@@ -44,7 +48,7 @@ export async function generateResume(env: Env, p: Profile, opts: { targetRole: s
   const out = await llmJson<Omit<ResumeContent, 'name' | 'contact' | 'education' | 'certifications' | 'competencies'> & { competencies?: ResumeContent['competencies'] }>(env, {
     task: 'resume', input: { p, opts }, temperature: 0.35, maxTokens: 2500,
     system: `You are an expert resume writer for Malaysian graduates, writing ATS-friendly resumes. ${HONEST} Bullets start with a strong verb and are under 25 words.`,
-    user: `Candidate profile:\n${profileBrief(p)}\n\nProgramme learning outcomes with evidence:\n${opts.plos.filter(x => x.evidence.length).map(x => `${x.code} ${x.domain}: ${x.evidence.join(', ')}`).join('\n')}\n\nWrite a one-page resume for the target role "${opts.targetRole}" in a ${opts.tone} tone.${jobPart}\n\nReturn {"headline":"short professional title","summary":"3 sentences","skills":[{"group","items":[]}],"experience":[{"title","org","period","bullets":[]}],"projects":[{"title","org","period","bullets":[]}],"competencies":[{"code","domain","evidence":"one line"}]}\nPut work, internships and activities under experience; academic/personal projects under projects. Choose the 4 strongest competencies.`,
+    user: `Candidate profile:\n${profileBrief(p)}\n\nProgramme learning outcomes with evidence:\n${opts.plos.filter(x => x.evidence.length).map(x => `${x.code} ${x.domain}: ${x.evidence.join(', ')}`).join('\n')}\n\nWrite a one-page resume for the target role "${opts.targetRole}" in a ${opts.tone} tone.${jobPart}\n\nReturn {"headline":"short professional title","summary":"3 sentences","skills":[{"group","items":[]}],"experience":[{"title","org","period","bullets":[]}],"projects":[{"title","org","period","bullets":[]}],"awards":["award or competition result exactly as in the profile"],"competencies":[{"code","domain","evidence":"one line"}]}\nPut work and internships under experience; academic/personal projects and builds under projects; prizes, competition placings and honours under awards (not repeated elsewhere). Never put a number, percentage, user count or uptime figure in a bullet unless that exact figure is in the profile. Skills: 3-5 groups, each item once across all groups, no soft skills. Choose the 4 strongest competencies.`,
   });
   const content: ResumeContent = {
     name: p.user.name,
@@ -54,11 +58,46 @@ export async function generateResume(env: Env, p: Profile, opts: { targetRole: s
     skills: out.skills ?? [],
     experience: out.experience ?? [],
     projects: out.projects ?? [],
-    education: p.education.map(e => ({ qualification: e.qualification, institution: e.institution, period: `${e.start_year ?? ''}–${e.end_year ?? 'Present'}`, details: [e.cgpa ? `CGPA ${e.cgpa.toFixed(2)}` : '', p.subjects.length ? `Relevant subjects: ${p.subjects.slice(-6).map(s => s.name).join(', ')}` : ''].filter(Boolean).join(' · ') })),
-    certifications: p.certifications.map(c => ({ name: c.name, issuer: c.issuer ?? '', year: c.year ?? '' })),
+    education: tidyEducation(p),
+    certifications: tidyCerts(p.certifications),
     competencies: out.competencies ?? [],
+    awards: (out.awards ?? []).filter(Boolean).slice(0, 5),
+    languages: [...new Set(p.skills.filter(x => /language/i.test(x.category)).map(x => x.name))],
+    hidden: ['competencies'],
   };
+  // Skills: drop duplicates across groups and empty groups
+  const seen = new Set<string>();
+  content.skills = content.skills.map(g => ({ group: g.group, items: (g.items ?? []).filter(i => { const k = i.trim().toLowerCase(); if (!k || seen.has(k)) return false; seen.add(k); return true; }) })).filter(g => g.items.length);
   return content;
+}
+
+const norm = (x: string) => (x ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const LEVEL = (q: string) => /phd|doctor/i.test(q) ? 5 : /master/i.test(q) ? 4 : /bachelor|degree|ijazah/i.test(q) ? 3 : /diploma/i.test(q) ? 2 : 1;
+
+/** One line per qualification, newest first; subjects listed only under the student's current programme. */
+function tidyEducation(p: Profile): ResumeContent['education'] {
+  const list = [...p.education].sort((a, b) => (b.end_year ?? 9999) - (a.end_year ?? 9999) || LEVEL(b.qualification) - LEVEL(a.qualification));
+  const out: (typeof list)[number][] = [];
+  for (const e of list) {
+    // "Bachelor's degree" at the same institution and level as a more specific entry is the same qualification
+    const dup = out.find(o => norm(o.institution) === norm(e.institution) && LEVEL(o.qualification) === LEVEL(e.qualification));
+    if (dup) { if (e.qualification.length > dup.qualification.length && !/^(bachelor'?s?|diploma|degree)( degree)?$/i.test(e.qualification.trim())) Object.assign(dup, { qualification: e.qualification }); dup.cgpa ??= e.cgpa; dup.programme_id ??= e.programme_id; continue; }
+    out.push({ ...e });
+  }
+  const main = out.find(e => e.programme_id) ?? out[0];
+  return out.map(e => ({
+    qualification: e.qualification, institution: e.institution,
+    period: e.start_year && e.end_year ? `${e.start_year}–${e.end_year}` : e.end_year ? String(e.end_year) : e.start_year ? `${e.start_year}–Present` : '',
+    details: [e.cgpa ? `CGPA ${Number(e.cgpa).toFixed(2)}` : '', e === main && p.subjects.length ? `Relevant subjects: ${p.subjects.slice(-6).map(s => s.name).join(', ')}` : ''].filter(Boolean).join(' · '),
+  }));
+}
+
+/** Unique certifications, real credentials before skill badges, newest first. */
+function tidyCerts(list: Profile['certifications']): ResumeContent['certifications'] {
+  const m = new Map<string, ResumeContent['certifications'][number]>();
+  for (const c of list) { const k = norm(c.name); if (k && !m.has(k)) m.set(k, { name: c.name.trim(), issuer: c.issuer ?? '', year: c.year ?? '' }); }
+  const badge = (n: string) => /badge|skill boost|concepts?$|explore|get started/i.test(n) ? 1 : 0;
+  return [...m.values()].sort((a, b) => badge(a.name) - badge(b.name) || (Number(b.year) || 0) - (Number(a.year) || 0));
 }
 
 export async function atsReview(env: Env, resume: ResumeContent, jd: string, keyword: { matched: string[]; missing: string[] }) {

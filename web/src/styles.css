@@ -935,3 +935,12 @@ html.modal-open .topbar, html.modal-open .tabbar { visibility: hidden; }
   body:has(.cv) .cv { padding-top: 0 !important; padding-bottom: 0 !important; min-height: 0 !important; }
   body:has(.cv) .topbar, body:has(.cv) .tabbar, body:has(.cv) .side, body:has(.cv) .ed, body:has(.cv) .editor__bar, body:has(.cv) .editor__view { display: none !important; }
 }
+/* Resume editor: section visibility + entry tools */
+.ed__group { position: relative; }
+.ed__vis { position: absolute; top: -30px; right: 0; display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; cursor: pointer; }
+.ed__group.is-hidden > :not(legend):not(.ed__vis) { opacity: .45; }
+.ed__group.is-hidden .ed__vis { color: var(--muted); }
+.ed__tools { display: flex; gap: 4px; align-items: center; justify-content: flex-end; }
+.ed__skill { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) auto; gap: 6px; align-items: center; }
+.ed__cert { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1.2fr) 64px auto; gap: 6px; align-items: center; }
+@media (max-width: 600px) { .ed__cert { grid-template-columns: 1fr 1fr; } .ed__cert > input:first-child { grid-column: 1 / -1; } }

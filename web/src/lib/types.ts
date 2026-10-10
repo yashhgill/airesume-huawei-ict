@@ -22,6 +22,9 @@ export interface ResumeContent {
   education: { qualification: string; institution: string; period: string; details: string }[];
   certifications: { name: string; issuer: string; year: string }[];
   competencies: { code: string; domain: string; evidence: string }[];
+  awards?: string[];
+  languages?: string[];
+  hidden?: string[];
 }
 export interface Job {
   id: string; title: string; company: string; location: string; remote: boolean; url: string; source: string;

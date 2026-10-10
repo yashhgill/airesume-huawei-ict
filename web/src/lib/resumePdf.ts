@@ -12,6 +12,7 @@ export async function resumePdf(r: ResumeContent): Promise<Blob> {
   const M = 48, CW = W - M * 2;
   const INK: [number, number, number] = [22, 21, 15], SOFT: [number, number, number] = [78, 74, 62], ACC: [number, number, number] = [138, 106, 0];
   let y = M;
+  const on = (k: string) => !(r.hidden ?? []).includes(k);
 
   const room = (h: number) => { if (y + h > H - M) { pdf.addPage(); y = M; } };
   const text = (s: string, size: number, opts: { bold?: boolean; italic?: boolean; color?: [number, number, number]; gap?: number; indent?: number } = {}) => {
@@ -55,30 +56,34 @@ export async function resumePdf(r: ResumeContent): Promise<Blob> {
   text([c.email, c.phone, c.location, c.linkedin, c.github, c.website].filter(Boolean).join('  |  '), 9.5, { color: SOFT, gap: 2 });
   y += 4; pdf.setDrawColor(...INK); pdf.setLineWidth(1.2); pdf.line(M, y, W - M, y); y += 6;
 
-  if (r.summary?.trim()) { heading('Profile'); text(r.summary, 10.5, { color: INK }); }
-  if (r.skills?.some(g => g.items?.some(Boolean))) {
+  if (on('summary') && r.summary?.trim()) { heading('Profile'); text(r.summary, 10.5, { color: INK }); }
+  if (on('skills') && r.skills?.some(g => g.items?.some(Boolean))) {
     heading('Skills');
     r.skills.filter(g => g.items?.some(Boolean)).forEach(g => text(`${g.group ? g.group + ': ' : ''}${g.items.filter(Boolean).join(', ')}`, 10, { gap: 2 }));
   }
   const block = (title: string, list: { title: string; org: string; period: string; bullets: string[] }[]) => {
-    if (!list?.length) return;
+    if (!list?.length || !on(title.toLowerCase())) return;
     heading(title);
     list.forEach(e => { row(e.title, e.period, 11); text(e.org, 10, { italic: true, color: SOFT, gap: 2 }); bullets(e.bullets ?? []); y += 6; });
   };
   block('Experience', r.experience);
   block('Projects', r.projects);
-  if (r.education?.length) {
+  if (on('education') && r.education?.length) {
     heading('Education');
     r.education.forEach(e => { row(e.qualification, e.period, 11); text(e.institution, 10, { italic: true, color: SOFT }); text(e.details, 10, { color: SOFT, gap: 6 }); });
   }
-  if (r.certifications?.length) {
+  const awards = (r.awards ?? []).filter(a => a.trim());
+  if (on('awards') && awards.length) { heading('Awards'); bullets(awards); }
+  if (on('certifications') && r.certifications?.length) {
     heading('Certifications');
     r.certifications.forEach(x => row(`${x.name}${x.issuer ? ' — ' + x.issuer : ''}`, x.year, 10.5));
   }
-  if (r.competencies?.length) {
+  if (on('competencies') && r.competencies?.length) {
     heading('Programme outcomes evidenced');
     r.competencies.forEach(x => text(`${x.code} ${x.domain}${x.evidence ? ': ' + x.evidence : ''}`, 10, { gap: 2 }));
   }
+  const langs = (r.languages ?? []).filter(a => a.trim());
+  if (on('languages') && langs.length) { heading('Languages'); text(langs.join(', '), 10); }
   pdf.setProperties({ title: `${r.name} - Resume`, creator: 'PathForward' });
   return pdf.output('blob');
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ClipboardCheck, Mail, Plus, Printer, Save, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, ClipboardCheck, Eye, EyeOff, Mail, Plus, Printer, Save, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
 import type { ResumeContent } from '../lib/types';
 import { ResumeView } from '../components/ResumeView';
@@ -33,22 +33,104 @@ export function ResumeEditor() {
     catch (e) { setErr((e as Error).message); }
   };
 
+  const hidden = new Set(r.hidden ?? []);
+  const toggle = (k: string) => { const h = new Set(hidden); h.has(k) ? h.delete(k) : h.add(k); update({ hidden: [...h] }); };
+  // List helpers: edit, remove and reorder any array section
+  function move<T>(list: T[], i: number, d: number) { const n = [...list]; const j = i + d; if (j < 0 || j >= n.length) return n; [n[i], n[j]] = [n[j], n[i]]; return n; }
   const entries = (k: 'experience' | 'projects', label: string) => (
-    <fieldset className="ed__group">
-      <legend>{label}</legend>
+    <Group hidden={hidden} toggle={toggle} k={k} label={label} onAdd={() => update({ [k]: [...r[k], { title: '', org: '', period: '', bullets: [''] }] })}>
       {r[k].map((x, i) => (
         <div key={i} className="ed__entry">
           <div className="grid-2">
-            <input aria-label="Title" value={x.title} onChange={e => update({ [k]: r[k].map((y, j) => j === i ? { ...y, title: e.target.value } : y) })} />
-            <input aria-label="Period" value={x.period} onChange={e => update({ [k]: r[k].map((y, j) => j === i ? { ...y, period: e.target.value } : y) })} placeholder="2025 – Present" />
+            <input aria-label="Title" placeholder="Role or project name" value={x.title} onChange={e => update({ [k]: r[k].map((y, j) => j === i ? { ...y, title: e.target.value } : y) })} />
+            <input aria-label="Period" value={x.period} onChange={e => update({ [k]: r[k].map((y, j) => j === i ? { ...y, period: e.target.value } : y) })} placeholder="Feb 2025 – Present" />
           </div>
-          <input aria-label="Organisation" value={x.org} onChange={e => update({ [k]: r[k].map((y, j) => j === i ? { ...y, org: e.target.value } : y) })} placeholder="Organisation" />
-          <textarea aria-label="Bullets, one per line" rows={Math.max(3, x.bullets.length + 1)} value={x.bullets.join('\n')} onChange={e => update({ [k]: r[k].map((y, j) => j === i ? { ...y, bullets: e.target.value.split('\n') } : y) })} />
-          <button className="btn btn--text danger" onClick={() => update({ [k]: r[k].filter((_, j) => j !== i) })}><Trash2 size={14} /> Remove</button>
+          <input aria-label="Organisation" value={x.org} onChange={e => update({ [k]: r[k].map((y, j) => j === i ? { ...y, org: e.target.value } : y) })} placeholder={k === 'projects' ? 'Context, e.g. Hari Inovasi Kebangsaan 2026 · 2nd place' : 'Company'} />
+          <textarea aria-label="Bullets, one per line" placeholder="One achievement per line. Start with a verb, add a real number if you have one." rows={Math.max(3, x.bullets.length + 1)} value={x.bullets.join('\n')} onChange={e => update({ [k]: r[k].map((y, j) => j === i ? { ...y, bullets: e.target.value.split('\n') } : y) })} />
+          <Tools onUp={() => update({ [k]: move(r[k], i, -1) })} onDown={() => update({ [k]: move(r[k], i, 1) })} onRemove={() => update({ [k]: r[k].filter((_, j) => j !== i) })} />
         </div>
       ))}
-      <button className="btn btn--ghost btn--sm" onClick={() => update({ [k]: [...r[k], { title: 'New entry', org: '', period: '', bullets: [''] }] })}><Plus size={14} /> Add</button>
-    </fieldset>
+    </Group>
+  );
+
+  const c = r.contact;
+  const setC = (patch: Partial<ResumeContent['contact']>) => update({ contact: { ...c, ...patch } });
+  const lines = (k: 'awards' | 'languages', label: string, ph: string) => (
+    <Group hidden={hidden} toggle={toggle} k={k} label={label}>
+      <textarea rows={Math.max(2, (r[k]?.length ?? 0) + 1)} placeholder={ph} value={(r[k] ?? []).join('\n')} onChange={e => update({ [k]: e.target.value.split('\n') })} />
+      <p className="muted small">One per line.</p>
+    </Group>
+  );
+
+  const editor = (
+    <aside className="ed no-print">
+      <fieldset className="ed__group">
+        <legend>Header</legend>
+        <Field label="Full name"><input value={r.name} onChange={e => update({ name: e.target.value })} /></Field>
+        <Field label="Headline"><input value={r.headline} onChange={e => update({ headline: e.target.value })} placeholder="Cloud & DevOps Intern · AWS · Kubernetes" /></Field>
+        <div className="grid-2">
+          <input aria-label="Email" placeholder="Email" value={c.email ?? ''} onChange={e => setC({ email: e.target.value })} />
+          <input aria-label="Phone" placeholder="Phone" value={c.phone ?? ''} onChange={e => setC({ phone: e.target.value })} />
+          <input aria-label="Location" placeholder="Location" value={c.location ?? ''} onChange={e => setC({ location: e.target.value })} />
+          <input aria-label="LinkedIn" placeholder="linkedin.com/in/…" value={c.linkedin ?? ''} onChange={e => setC({ linkedin: e.target.value })} />
+          <input aria-label="GitHub" placeholder="github.com/…" value={c.github ?? ''} onChange={e => setC({ github: e.target.value })} />
+          <input aria-label="Website" placeholder="Portfolio / website" value={c.website ?? ''} onChange={e => setC({ website: e.target.value })} />
+        </div>
+      </fieldset>
+      <Group hidden={hidden} toggle={toggle} k="summary" label="Profile summary">
+        <textarea rows={5} value={r.summary} onChange={e => update({ summary: e.target.value })} />
+        <p className="muted small">{r.summary.trim().split(/\s+/).filter(Boolean).length} words · aim for 40–70.</p>
+      </Group>
+      <Group hidden={hidden} toggle={toggle} k="skills" label="Skills" onAdd={() => update({ skills: [...r.skills, { group: '', items: [] }] })} addLabel="Add group">
+        {r.skills.map((g, i) => (
+          <div key={i} className="ed__skill">
+            <input aria-label="Group" placeholder="Group" value={g.group} onChange={e => update({ skills: r.skills.map((y, j) => j === i ? { ...y, group: e.target.value } : y) })} />
+            <input aria-label="Items, comma separated" placeholder="AWS, Kubernetes, Terraform" value={g.items.join(', ')} onChange={e => update({ skills: r.skills.map((y, j) => j === i ? { ...y, items: e.target.value.split(',').map(x => x.trimStart()) } : y) })} />
+            <button type="button" className="icon-btn" aria-label="Remove group" onClick={() => update({ skills: r.skills.filter((_, j) => j !== i) })}><Trash2 size={14} /></button>
+          </div>
+        ))}
+      </Group>
+      {entries('experience', 'Experience')}
+      {entries('projects', 'Projects')}
+      <Group hidden={hidden} toggle={toggle} k="education" label="Education" onAdd={() => update({ education: [...r.education, { qualification: '', institution: '', period: '', details: '' }] })}>
+        {r.education.map((x, i) => (
+          <div key={i} className="ed__entry">
+            <div className="grid-2">
+              <input aria-label="Qualification" placeholder="Bachelor of …" value={x.qualification} onChange={e => update({ education: r.education.map((y, j) => j === i ? { ...y, qualification: e.target.value } : y) })} />
+              <input aria-label="Period" placeholder="2024 – 2027" value={x.period} onChange={e => update({ education: r.education.map((y, j) => j === i ? { ...y, period: e.target.value } : y) })} />
+            </div>
+            <input aria-label="Institution" placeholder="Institution" value={x.institution} onChange={e => update({ education: r.education.map((y, j) => j === i ? { ...y, institution: e.target.value } : y) })} />
+            <textarea aria-label="Details" rows={2} placeholder="CGPA 3.49 · Relevant subjects: …" value={x.details} onChange={e => update({ education: r.education.map((y, j) => j === i ? { ...y, details: e.target.value } : y) })} />
+            <Tools onUp={() => update({ education: move(r.education, i, -1) })} onDown={() => update({ education: move(r.education, i, 1) })} onRemove={() => update({ education: r.education.filter((_, j) => j !== i) })} />
+          </div>
+        ))}
+      </Group>
+      {lines('awards', 'Awards', '2nd Place — Hari Inovasi Kebangsaan @Melaka 2026 (MediLink)')}
+      <Group hidden={hidden} toggle={toggle} k="certifications" label="Certifications" onAdd={() => update({ certifications: [...r.certifications, { name: '', issuer: '', year: '' }] })}>
+        {r.certifications.map((x, i) => (
+          <div key={i} className="ed__cert">
+            <input aria-label="Certification" placeholder="Certification" value={x.name} onChange={e => update({ certifications: r.certifications.map((y, j) => j === i ? { ...y, name: e.target.value } : y) })} />
+            <input aria-label="Issuer" placeholder="Issuer" value={x.issuer} onChange={e => update({ certifications: r.certifications.map((y, j) => j === i ? { ...y, issuer: e.target.value } : y) })} />
+            <input aria-label="Year" placeholder="Year" value={x.year} onChange={e => update({ certifications: r.certifications.map((y, j) => j === i ? { ...y, year: e.target.value } : y) })} />
+            <div className="ed__tools">
+              <button type="button" className="icon-btn" onClick={() => update({ certifications: move(r.certifications, i, -1) })} aria-label="Move up"><ArrowUp size={14} /></button>
+              <button type="button" className="icon-btn" onClick={() => update({ certifications: r.certifications.filter((_, j) => j !== i) })} aria-label="Remove"><Trash2 size={14} /></button>
+            </div>
+          </div>
+        ))}
+      </Group>
+      {lines('languages', 'Languages', 'English\nMalay')}
+      <Group hidden={hidden} toggle={toggle} k="competencies" label="Programme outcomes (MQA)">
+        <p className="muted small">Shows which programme learning outcomes your subjects prove. Most employers don't need this, so it is hidden by default.</p>
+        {r.competencies.map((x, i) => (
+          <div key={i} className="ed__skill">
+            <input aria-label="Outcome" value={x.domain} onChange={e => update({ competencies: r.competencies.map((y, j) => j === i ? { ...y, domain: e.target.value } : y) })} />
+            <input aria-label="Evidence" value={x.evidence} onChange={e => update({ competencies: r.competencies.map((y, j) => j === i ? { ...y, evidence: e.target.value } : y) })} />
+            <button type="button" className="icon-btn" aria-label="Remove" onClick={() => update({ competencies: r.competencies.filter((_, j) => j !== i) })}><Trash2 size={14} /></button>
+          </div>
+        ))}
+      </Group>
+    </aside>
   );
 
   return (
@@ -69,26 +151,31 @@ export function ResumeEditor() {
         <button role="tab" className={view === 'preview' ? 'is-on' : ''} onClick={() => setView('preview')}>Preview</button>
       </div>
       <div className={`editor__body view-${view}`}>
-        <aside className="ed no-print">
-          <Field label="Headline"><input value={r.headline} onChange={e => update({ headline: e.target.value })} /></Field>
-          <Field label="Profile summary"><textarea rows={5} value={r.summary} onChange={e => update({ summary: e.target.value })} /></Field>
-          <fieldset className="ed__group">
-            <legend>Skills</legend>
-            {r.skills.map((g, i) => (
-              <div key={i} className="ed__skill">
-                <input aria-label="Group" value={g.group} onChange={e => update({ skills: r.skills.map((y, j) => j === i ? { ...y, group: e.target.value } : y) })} />
-                <input aria-label="Items, comma separated" value={g.items.join(', ')} onChange={e => update({ skills: r.skills.map((y, j) => j === i ? { ...y, items: e.target.value.split(',').map(s => s.trim()) } : y) })} />
-              </div>
-            ))}
-            <button className="btn btn--ghost btn--sm" onClick={() => update({ skills: [...r.skills, { group: 'Other', items: [] }] })}><Plus size={14} /> Add group</button>
-          </fieldset>
-          {entries('experience', 'Experience')}
-          {entries('projects', 'Projects')}
-          <p className="muted small">Education, certifications and contact details come from your profile.</p>
-        </aside>
+        {editor}
         <div className="paper-wrap"><ResumeView r={r} template={doc.template} /></div>
       </div>
       {letter && <CoverLetter onClose={() => setLetter(false)} defaultJob={doc.job_ref ? `${doc.job_ref.title} at ${doc.job_ref.company}` : doc.target_role} />}
+    </div>
+  );
+}
+
+// Defined outside the editor so inputs keep focus while typing (a component created during render remounts every keystroke).
+function Group({ k, label, children, onAdd, addLabel = 'Add', hidden, toggle }: { k: string; label: string; children: React.ReactNode; onAdd?: () => void; addLabel?: string; hidden: Set<string>; toggle: (k: string) => void }) {
+  return (
+    <fieldset className={`ed__group ${hidden.has(k) ? 'is-hidden' : ''}`}>
+      <legend>{label}</legend>
+      <button type="button" className="ed__vis" onClick={() => toggle(k)} aria-pressed={!hidden.has(k)} title={hidden.has(k) ? 'Show on resume' : 'Hide from resume'}>{hidden.has(k) ? <><EyeOff size={14} /> Hidden</> : <><Eye size={14} /> Shown</>}</button>
+      {children}
+      {onAdd && <button type="button" className="btn btn--ghost btn--sm" onClick={onAdd}><Plus size={14} /> {addLabel}</button>}
+    </fieldset>
+  );
+}
+function Tools({ onUp, onDown, onRemove }: { onUp: () => void; onDown: () => void; onRemove: () => void }) {
+  return (
+    <div className="ed__tools">
+      <button type="button" className="icon-btn" onClick={onUp} aria-label="Move up"><ArrowUp size={14} /></button>
+      <button type="button" className="icon-btn" onClick={onDown} aria-label="Move down"><ArrowDown size={14} /></button>
+      <button type="button" className="btn btn--text danger" onClick={onRemove}><Trash2 size={14} /> Remove</button>
     </div>
   );
 }
