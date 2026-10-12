@@ -115,15 +115,49 @@ function SubjectForm({ s, pid, plos, onClose, onSaved }: { s: Partial<Subj>; pid
 }
 
 function Users() {
+  const { user } = useAuth();
   const list = useApi<{ id: string; name: string; email: string; role: string; created_at: string; resumes: number; skills: number }[]>('/admin/users');
+  const [q, setQ] = useState('');
+  const [msg, setMsg] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
+  const [del, setDel] = useState<{ id: string; name: string; email: string } | null>(null);
+  const [busy, setBusy] = useState(false);
   if (!list.data) return <Spinner />;
+  const rows = list.data.filter(u => !q || `${u.name} ${u.email} ${u.role}`.toLowerCase().includes(q.toLowerCase()));
+  const setRole = async (u: { id: string; email: string }, role: string) => {
+    setMsg(null);
+    try { await api(`/admin/users/${u.id}/role`, { method: 'PUT', body: { role } }); setMsg({ tone: 'ok', text: `${u.email} is now ${role === 'admin' ? 'an admin' : `a ${role}`}. They need to sign out and back in.` }); }
+    catch (e) { setMsg({ tone: 'error', text: (e as Error).message }); }
+    list.reload();
+  };
+  const remove = async () => {
+    if (!del) return; setBusy(true);
+    try { await api(`/admin/users/${del.id}`, { method: 'DELETE' }); setMsg({ tone: 'ok', text: `Deleted ${del.email}.` }); setDel(null); list.reload(); }
+    catch (e) { setMsg({ tone: 'error', text: (e as Error).message }); setDel(null); } finally { setBusy(false); }
+  };
   return (
     <Card>
+      <div className="row between" style={{ marginBottom: 12 }}>
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search name, email or role" aria-label="Search users" style={{ maxWidth: 320 }} />
+        <span className="muted small">{rows.length} of {list.data.length} users</span>
+      </div>
+      {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
       <div className="table-wrap"><table className="table">
-        <thead><tr><th>Name</th><th>Email</th><th>Joined</th><th>Skills</th><th>Resumes</th><th>Role</th></tr></thead>
-        <tbody>{list.data.map(u => <tr key={u.id}><td>{u.name}</td><td>{u.email}</td><td>{u.created_at.slice(0, 10)}</td><td>{u.skills}</td><td>{u.resumes}</td>
-          <td><select value={u.role} aria-label={`Role for ${u.email}`} onChange={async e => { await api(`/admin/users/${u.id}/role`, { method: 'PUT', body: { role: e.target.value } }); list.reload(); }}><option value="student">student</option><option value="recruiter">recruiter</option><option value="admin">admin</option></select></td></tr>)}</tbody>
+        <thead><tr><th>Name</th><th>Email</th><th>Joined</th><th>Skills</th><th>Resumes</th><th>Role</th><th></th></tr></thead>
+        <tbody>{rows.map(u => {
+          const me = u.id === user?.id;
+          return (
+            <tr key={u.id}><td>{u.name}{me && <Tag tone="accent">You</Tag>}</td><td>{u.email}</td><td>{u.created_at.slice(0, 10)}</td><td>{u.skills}</td><td>{u.resumes}</td>
+              <td><select value={u.role} disabled={me} title={me ? 'You cannot change your own role' : undefined} aria-label={`Role for ${u.email}`} onChange={e => setRole(u, e.target.value)}>{['student', 'staff', 'recruiter', 'admin'].filter(r => r !== 'staff' || u.role === 'staff').map(r => <option key={r} value={r}>{r}</option>)}</select></td>
+              <td>{!me && <button className="icon-btn danger" aria-label={`Delete ${u.email}`} title="Delete user" onClick={() => setDel(u)}><Trash2 size={16} /></button>}</td></tr>
+          );
+        })}</tbody>
       </table></div>
+      {del && (
+        <Modal title="Delete this user?" onClose={() => setDel(null)}>
+          <p><b>{del.name}</b> ({del.email}) and everything they created will be deleted for good: profile, subjects, skills, resumes, coach chats, plans and shortlists.</p>
+          <div className="row end"><button className="btn btn--ghost" onClick={() => setDel(null)}>Cancel</button><button className="btn btn--danger" onClick={remove} disabled={busy}><Trash2 size={15} /> {busy ? 'Deleting…' : 'Delete user'}</button></div>
+        </Modal>
+      )}
     </Card>
   );
 }

@@ -245,3 +245,18 @@ test('quickMatch understands aliases', () => {
   assert.ok(m.score > 0);
   assert.ok(m.matched.includes('Kubernetes'));
 });
+
+test('admin can change roles and delete users, but not themselves or the last admin', async () => {
+  let adm = (await call('POST', '/auth/register', { name: 'Boss', email: 'admin@test.my', password: 'password123' })).body;
+  if (!adm.token) adm = (await call('POST', '/auth/login', { email: 'admin@test.my', password: 'password123' })).body;
+  const stu = (await call('POST', '/auth/register', { name: 'Kid', email: 'kid@x.my', password: 'password1' })).body;
+  const users = await call('GET', '/admin/users', undefined, adm.token);
+  assert.equal(users.status, 200);
+  assert.equal((await call('PUT', `/admin/users/${adm.user.id}/role`, { role: 'recruiter' }, adm.token)).status, 409);
+  assert.equal((await call('PUT', `/admin/users/${stu.user.id}/role`, { role: 'recruiter' }, adm.token)).status, 200);
+  const login = await call('POST', '/auth/login', { email: 'kid@x.my', password: 'password1' });
+  assert.equal(login.body.user.role, 'recruiter');
+  assert.equal((await call('DELETE', `/admin/users/${adm.user.id}`, undefined, adm.token)).status, 409);
+  assert.equal((await call('DELETE', `/admin/users/${stu.user.id}`, undefined, adm.token)).status, 200);
+  assert.equal((await call('POST', '/auth/login', { email: 'kid@x.my', password: 'password1' })).status, 401);
+});

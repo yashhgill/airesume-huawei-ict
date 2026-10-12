@@ -71,7 +71,7 @@ app.post('/auth/login', async c => {
   const row = await c.env.DB.prepare('SELECT id,name,email,role,password_hash,must_change_password FROM users WHERE email=?').bind(email).first<{ id: string; name: string; email: string; role: string; password_hash: string; must_change_password: number }>();
   if (!row || !(await verifyPassword(String(b.password ?? ''), row.password_hash))) bad('Email or password is incorrect.', 401);
   let role = row!.role;
-  if (role !== 'admin' && isAdminEmail(c.env, email)) { role = 'admin'; await c.env.DB.prepare("UPDATE users SET role='admin' WHERE id=?").bind(row!.id).run(); }
+  if (role === 'student' && isAdminEmail(c.env, email)) { role = 'admin'; await c.env.DB.prepare("UPDATE users SET role='admin' WHERE id=?").bind(row!.id).run(); }
   const token = await signJwt({ sub: row!.id, email, role, name: row!.name }, secret(c.env));
   await c.env.DB.prepare('INSERT INTO activity (user_id,action) VALUES (?,?)').bind(row!.id, 'login').run();
   return c.json({ token, user: { id: row!.id, name: row!.name, email, role }, mustChangePassword: !!row!.must_change_password });
@@ -884,10 +884,34 @@ app.get('/admin/users', async c => {
   return c.json(r.results);
 });
 
+const admins = (c: C) => c.env.DB.prepare("SELECT COUNT(*) n FROM users WHERE role='admin'").first<number>('n');
+
 app.put('/admin/users/:id/role', async c => {
   const r = (await c.req.json()).role;
   const role = ['admin', 'recruiter', 'student'].includes(r) ? r : 'student';
-  await c.env.DB.prepare('UPDATE users SET role=? WHERE id=?').bind(role, c.req.param('id')).run();
+  const id = c.req.param('id');
+  if (id === c.get('user').id) bad('You cannot change your own role. Ask another admin, or use a different account.', 409);
+  const cur = await c.env.DB.prepare('SELECT role,email FROM users WHERE id=?').bind(id).first<{ role: string; email: string }>();
+  if (!cur) bad('User not found.', 404);
+  if (cur!.role === 'admin' && role !== 'admin' && ((await admins(c)) ?? 0) <= 1) bad('There must be at least one admin.', 409);
+  await c.env.DB.prepare('UPDATE users SET role=? WHERE id=?').bind(role, id).run();
+  await log(c, 'admin.role', `${cur!.email}: ${cur!.role} → ${role}`);
+  return c.json({ ok: true, note: 'They need to sign out and in again for the new role to apply.' });
+});
+
+app.delete('/admin/users/:id', async c => {
+  const id = c.req.param('id');
+  if (id === c.get('user').id) bad('You cannot delete your own account here.', 409);
+  const cur = await c.env.DB.prepare('SELECT role,email FROM users WHERE id=?').bind(id).first<{ role: string; email: string }>();
+  if (!cur) bad('User not found.', 404);
+  if (cur!.role === 'admin' && ((await admins(c)) ?? 0) <= 1) bad('There must be at least one admin.', 409);
+  // Related rows (profile, resumes, coach, shortlists, roles…) go with ON DELETE CASCADE; logs keep the event but lose the link.
+  await c.env.DB.batch([
+    c.env.DB.prepare('UPDATE activity SET user_id=NULL WHERE user_id=?').bind(id),
+    c.env.DB.prepare('UPDATE curriculum_log SET user_id=NULL WHERE user_id=?').bind(id),
+    c.env.DB.prepare('DELETE FROM users WHERE id=?').bind(id),
+  ]);
+  await log(c, 'admin.delete_user', cur!.email);
   return c.json({ ok: true });
 });
 

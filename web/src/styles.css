@@ -1023,3 +1023,5 @@ html.modal-open .topbar, html.modal-open .tabbar { visibility: hidden; }
 .cand__id span:not(.cand__meta) { -webkit-line-clamp: 1; color: var(--ink-2); }
 .cand__meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cand .tag { border-radius: 10px; padding: 4px 10px; }
+.btn--danger { background: var(--bad); color: #fff; border-color: var(--bad); }
+.btn--danger:hover { filter: brightness(.92); }
