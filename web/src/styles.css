@@ -1014,3 +1014,12 @@ html.modal-open .topbar, html.modal-open .tabbar { visibility: hidden; }
 .cand .chips { min-width: 0; }
 .cand .tag { white-space: normal; max-width: 100%; line-height: 1.35; }
 .cand .tag svg { flex: none; }
+.cands { grid-template-columns: repeat(auto-fill, minmax(min(100%, 460px), 1fr)); gap: 16px; }
+.cand { padding: 20px; gap: 14px; }
+.cand__main { grid-template-columns: 52px minmax(0, 1fr) auto; align-items: start; }
+.cand__main .avatar { width: 52px !important; height: 52px !important; }
+.cand__id { gap: 2px; }
+.cand__id b { font-size: 16.5px; }
+.cand__id span:not(.cand__meta) { -webkit-line-clamp: 1; color: var(--ink-2); }
+.cand__meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cand .tag { border-radius: 10px; padding: 4px 10px; }
