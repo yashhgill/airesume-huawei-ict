@@ -28,7 +28,7 @@ export function CandidateCard({ c, onShortlist }: { c: Cand; onShortlist?: (c: C
         <div className="cand__id">
           <b>{c.name}</b>
           <span>{c.headline || c.programme || 'Student'}</span>
-          <span className="muted small">{[c.institution, c.grad_year && `Class of ${c.grad_year}`, c.location].filter(Boolean).join(' · ')}</span>
+          <span className="muted small cand__meta">{[c.institution, c.grad_year && `Class of ${c.grad_year}`, c.location?.split(',').map(x => x.trim()).filter(Boolean).slice(-2).join(', ')].filter(Boolean).join(' · ')}</span>
         </div>
         <div className="cand__score">
           {c.match != null ? <><b>{c.match}%</b><span>match</span></> : <><b>{c.readiness}</b><span>ready</span></>}

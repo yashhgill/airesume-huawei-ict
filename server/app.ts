@@ -176,7 +176,7 @@ const requireAdmin = async (c: C, next: Next) => {
 };
 
 const requireRecruiter = async (c: C, next: Next) => {
-  if (!['recruiter', 'admin'].includes(c.get('user').role)) bad('Recruiters only.', 403);
+  if (c.get('user').role !== 'recruiter') bad('Talent search is for recruiters only.', 403);
   await next();
 };
 

@@ -47,9 +47,9 @@ export default function App() {
         <Route path="coach" element={<CoachPage />} />
         <Route path="interview" element={<InterviewPage />} />
         <Route path="plan" element={<PlanPage />} />
-        <Route path="talent" element={<TalentPage />} />
-        <Route path="talent/:id" element={<CandidatePage />} />
-        <Route path="shortlist" element={<ShortlistPage />} />
+        <Route path="talent" element={<RecruiterOnly><TalentPage /></RecruiterOnly>} />
+        <Route path="talent/:id" element={<RecruiterOnly><CandidatePage /></RecruiterOnly>} />
+        <Route path="shortlist" element={<RecruiterOnly><ShortlistPage /></RecruiterOnly>} />
         <Route path="manage" element={<ManageHome />} />
         <Route path="manage/u/:id" element={<ManageUniversity />} />
         <Route path="manage/f/:id" element={<ManageFaculty />} />
@@ -121,8 +121,6 @@ function Protected() {
             <p className="side__group">Manage</p>
             <NavLink to="/app/admin" className="navlink"><ShieldCheck size={18} /><span>Admin console</span></NavLink>
             <NavLink to="/app/manage" className="navlink"><Building2 size={18} /><span>Universities</span></NavLink>
-            <p className="side__group">Recruiting</p>
-            {RECRUITER.map(n => <NavLink key={n.to} to={n.to} className="navlink"><n.icon size={18} /><span>{n.label}</span></NavLink>)}
           </>}
           {isStaff && <>
             <p className="side__group">Manage</p>
@@ -156,7 +154,7 @@ function Protected() {
       <nav className="tabbar" aria-label="Sections">
         {isAdmin && <NavLink to="/app/admin"><ShieldCheck size={20} /><span>Admin</span></NavLink>}
         {(isAdmin || isStaff) && <NavLink to="/app/manage"><Building2 size={20} /><span>{isAdmin ? 'Unis' : 'Manage'}</span></NavLink>}
-        {(isAdmin || isRecruiter) && RECRUITER.map(n => <NavLink key={n.to} to={n.to}><n.icon size={20} /><span>{n.label === 'Find talent' ? 'Talent' : n.label}</span></NavLink>)}
+        {isRecruiter && RECRUITER.map(n => <NavLink key={n.to} to={n.to}><n.icon size={20} /><span>{n.label === 'Find talent' ? 'Talent' : n.label}</span></NavLink>)}
         {student && TABS.map(n => <NavLink key={n.to} to={n.to} end={n.end}><n.icon size={20} /><span>{n.label}</span></NavLink>)}
         <button className={more ? 'active' : ''} onClick={() => setMore(true)}><LayoutGrid size={20} /><span>More</span></button>
       </nav>
@@ -176,7 +174,7 @@ function Protected() {
             {!student && <div className="sheet__grid">
               {isAdmin && <NavLink to="/app/admin" className="sheet__item"><ShieldCheck size={20} /><span>Admin</span></NavLink>}
               {(isAdmin || isStaff) && <NavLink to="/app/manage" className="sheet__item"><Building2 size={20} /><span>Universities</span></NavLink>}
-              {!isStaff && RECRUITER.map(n => <NavLink key={n.to} to={n.to} className="sheet__item"><n.icon size={20} /><span>{n.label}</span></NavLink>)}
+              {isRecruiter && RECRUITER.map(n => <NavLink key={n.to} to={n.to} className="sheet__item"><n.icon size={20} /><span>{n.label}</span></NavLink>)}
             </div>}
             <div className="sheet__foot"><span className="muted small">Appearance</span><ThemeToggle /></div>
             <button className="btn btn--ghost btn--wide" onClick={out}><LogOut size={16} /> Sign out</button>
@@ -194,4 +192,11 @@ function Home() {
   if (user?.role === 'recruiter') return <Navigate to="/app/talent" replace />;
   if (user?.role === 'staff') return <Navigate to="/app/manage" replace />;
   return <Today />;
+}
+
+/** Talent search and shortlists belong to recruiters only (not admins or students). */
+function RecruiterOnly({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  if (user && user.role !== 'recruiter') return <Navigate to="/app" replace />;
+  return <>{children}</>;
 }
