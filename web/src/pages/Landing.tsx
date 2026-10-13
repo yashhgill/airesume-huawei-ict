@@ -41,11 +41,6 @@ export function Landing() {
             <Link className="btn btn--primary btn--lg" to={user ? '/app' : '/register'}>Map my subjects <ArrowRight size={18} /></Link>
             <a className="btn btn--ghost btn--lg" href="#how">How it works</a>
           </div>
-          <div className="hero__proof">
-            <span><b>2 min</b>to map a degree</span>
-            <span><b>11</b>MQA outcome domains</span>
-            <span><b>0</b>invented facts on your resume</span>
-          </div>
         </div>
         <div className="tx" aria-hidden>
           <div className="tx__card">
