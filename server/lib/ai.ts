@@ -175,13 +175,13 @@ export interface PlanContent {
   summary: string;
   role: string;
   certification?: { name: string; why: string };
-  weeks: { week: number; theme: string; tasks: { title: string; kind: 'learn' | 'build' | 'certify' | 'apply' | 'practice'; resource: string; minutes: number; done?: boolean }[] }[];
+  weeks: { week: number; theme: string; tasks: { title: string; kind: 'learn' | 'build' | 'certify' | 'apply' | 'practice'; resource: string; query?: string; minutes: number; done?: boolean }[] }[];
 }
 
 export async function learningPlan(env: Env, p: Profile, opts: { role: string; weeks: number; hours: number; gaps: string[]; cert?: string }) {
   return llmJson<PlanContent>(env, {
     task: 'plan', input: opts, temperature: 0.4, maxTokens: 3000, speed: 'smart',
     system: `You design realistic self-study plans for Malaysian university students juggling classes. Prefer free, well-known resources (official vendor training such as AWS Skill Builder, Microsoft Learn, Google Cloud Skills Boost, Huawei Talent, Cisco NetAcad; freeCodeCamp, Coursera audit, official documentation, YouTube channels) and name them exactly. ${HONEST}`,
-    user: `Candidate profile:\n${profileBrief(p)}\n\nTarget role: ${opts.role}\nKnown gaps: ${opts.gaps.join(', ') || 'work them out from the profile'}\nDuration: ${opts.weeks} weeks, about ${opts.hours} hours per week.\n\nBuild a week-by-week plan that closes the gaps and ends with something the student can show (a project, a certification, applications sent). 3-4 tasks per week; minutes per task must add up to roughly the weekly hours. kinds: learn, build, practice, certify, apply. Include one portfolio project built across several weeks and ${opts.cert ? `prepares for the certification the student chose: ${opts.cert}` : 'where it fits, the single best-fit certification from any vendor (prefer a free one if it is equally useful)'}.\nReturn {"summary":"2 sentences","role":"${opts.role}","certification":{"name","why"},"weeks":[{"week":1,"theme","tasks":[{"title","kind","resource","minutes"}]}]}`,
+    user: `Candidate profile:\n${profileBrief(p)}\n\nTarget role: ${opts.role}\nKnown gaps: ${opts.gaps.join(', ') || 'work them out from the profile'}\nDuration: ${opts.weeks} weeks, about ${opts.hours} hours per week.\n\nBuild a week-by-week plan that closes the gaps and ends with something the student can show (a project, a certification, applications sent). 3-4 tasks per week; minutes per task must add up to roughly the weekly hours. kinds: learn, build, practice, certify, apply. Include one portfolio project built across several weeks and ${opts.cert ? `prepares for the certification the student chose: ${opts.cert}` : 'where it fits, the single best-fit certification from any vendor (prefer a free one if it is equally useful)'}.\nReturn {"summary":"2 sentences","role":"${opts.role}","certification":{"name","why"},"weeks":[{"week":1,"theme","tasks":[{"title","kind","resource":"provider + exact course or doc name, e.g. Microsoft Learn: Introduction to Docker containers","query":"3-6 word search phrase for this topic","minutes"}]}]}`,
   });
 }

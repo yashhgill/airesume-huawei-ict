@@ -677,7 +677,7 @@ app.post('/plan', async c => {
   const out = await ai(c, 'ai.plan', () => learningPlan(c.env, p, { role, weeks, hours, gaps, cert: str(b.cert, 120) || undefined }), role);
   const content: PlanContent = {
     summary: out.summary ?? '', role, certification: out.certification,
-    weeks: (out.weeks ?? []).slice(0, weeks).map((w, i) => ({ week: i + 1, theme: w.theme ?? '', tasks: (w.tasks ?? []).slice(0, 6).map(t => ({ title: t.title, kind: t.kind ?? 'learn', resource: t.resource ?? '', minutes: Number(t.minutes) || 60, done: false })) })),
+    weeks: (out.weeks ?? []).slice(0, weeks).map((w, i) => ({ week: i + 1, theme: w.theme ?? '', tasks: (w.tasks ?? []).slice(0, 6).map(t => ({ title: t.title, kind: t.kind ?? 'learn', resource: t.resource ?? '', query: typeof t.query === 'string' ? t.query.slice(0, 80) : undefined, minutes: Number(t.minutes) || 60, done: false })) })),
   };
   const id = newId();
   await c.env.DB.prepare('INSERT INTO plans (id,user_id,role,content) VALUES (?,?,?,?)').bind(id, p.user.id, role, JSON.stringify(content)).run();

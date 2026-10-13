@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Award, Check, RefreshCw, Route } from 'lucide-react';
+import { Award, BookOpen, Check, ExternalLink, FileText, Hammer, Briefcase, PlayCircle, RefreshCw, Route } from 'lucide-react';
 import { api } from '../lib/api';
 import { useApi } from '../lib/hooks';
+import { resourcesFor } from '../lib/resources';
 import { Card, Field, Notice, PageHead, Score, Spinner, Tag } from '../components/ui';
 
-interface Task { title: string; kind: string; resource: string; minutes: number; done?: boolean }
+interface Task { title: string; kind: string; resource: string; query?: string; minutes: number; done?: boolean }
 interface Plan { id: string; role: string; created_at: string; content: { summary: string; role: string; certification?: { name: string; why: string }; weeks: { week: number; theme: string; tasks: Task[] }[] } }
 
 export function PlanPage() {
@@ -48,7 +49,8 @@ export function PlanPage() {
                 {w.tasks.map((t, ti) => (
                   <div key={ti} className={`task ${t.done ? 'done' : ''}`}>
                     <button className="task__box" aria-label={t.done ? 'Mark not done' : 'Mark done'} onClick={() => toggle(wi, ti, !t.done)}><Check size={14} strokeWidth={3.5} /></button>
-                    <span><span className="task__t">{t.title}</span><span className="task__r">{t.resource} · {t.minutes} min</span></span>
+                    <span><span className="task__t">{t.title}</span><span className="task__r">{t.resource} · {t.minutes} min</span>
+                      <span className="task__links">{resourcesFor(t, p.role).map(r => { const I = { course: BookOpen, video: PlayCircle, docs: FileText, practice: Hammer, jobs: Briefcase }[r.kind]; return <a key={r.label} href={r.url} target="_blank" rel="noreferrer"><I size={13} /> {r.label} <ExternalLink size={11} /></a>; })}</span></span>
                     <span className={`task__k k-${t.kind}`}>{t.kind}</span>
                   </div>
                 ))}
