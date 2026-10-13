@@ -1030,3 +1030,15 @@ html.modal-open .topbar, html.modal-open .tabbar { visibility: hidden; }
 .task__links a:hover { border-color: var(--line-2); color: var(--ink); }
 .task__links a svg:last-child { opacity: .55; }
 .task.done .task__links { opacity: .5; }
+.task__res { display: grid; gap: 6px; margin-top: 8px; }
+.res { display: grid; grid-template-columns: 18px minmax(0, 1fr) 14px; gap: 10px; align-items: center; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); text-decoration: none; max-width: 560px; }
+.res:hover { border-color: var(--line-2); background: var(--surface-2); }
+.res b { display: block; font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.res small { display: block; font-size: 12px; color: var(--muted); }
+.res > svg:first-child { color: var(--c1); }
+.res--video > svg:first-child { color: #D93025; }
+.res--practice > svg:first-child { color: var(--ink-2); }
+.res--jobs > svg:first-child { color: var(--c5); }
+.res > svg:last-child { color: var(--muted); }
+.task__finding { display: block; margin-top: 6px; }
+.task.done .task__res { opacity: .55; }

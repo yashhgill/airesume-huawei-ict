@@ -1,3 +1,4 @@
+import { resolveCached } from './lib/resources';
 import { Hono } from 'hono';
 import type { Context, Next } from 'hono';
 import { HTTPException } from 'hono/http-exception';
@@ -682,6 +683,21 @@ app.post('/plan', async c => {
   const id = newId();
   await c.env.DB.prepare('INSERT INTO plans (id,user_id,role,content) VALUES (?,?,?,?)').bind(id, p.user.id, role, JSON.stringify(content)).run();
   return c.json(await latestPlan(c), 201);
+});
+
+// Find exact videos and course pages for tasks that don't have them yet (a few per call, cached)
+app.post('/plan/resources', async c => {
+  const plan = await latestPlan(c);
+  if (!plan) bad('No plan yet.', 404);
+  const todo: { wi: number; ti: number }[] = [];
+  plan!.content.weeks.forEach((w, wi) => w.tasks.forEach((t, ti) => { if (!t.links) todo.push({ wi, ti }); }));
+  const batch = todo.slice(0, 6);
+  await Promise.all(batch.map(async ({ wi, ti }) => {
+    const t = plan!.content.weeks[wi].tasks[ti];
+    t.links = await resolveCached(c.env, t, plan!.role);
+  }));
+  if (batch.length) await c.env.DB.prepare('UPDATE plans SET content=? WHERE id=?').bind(JSON.stringify(plan!.content), plan!.id).run();
+  return c.json({ content: plan!.content, remaining: todo.length - batch.length });
 });
 
 app.put('/plan/task', async c => {

@@ -175,7 +175,7 @@ export interface PlanContent {
   summary: string;
   role: string;
   certification?: { name: string; why: string };
-  weeks: { week: number; theme: string; tasks: { title: string; kind: 'learn' | 'build' | 'certify' | 'apply' | 'practice'; resource: string; query?: string; minutes: number; done?: boolean }[] }[];
+  weeks: { week: number; theme: string; tasks: { title: string; kind: 'learn' | 'build' | 'certify' | 'apply' | 'practice'; resource: string; query?: string; links?: { label: string; title: string; url: string; kind: string; meta?: string }[]; minutes: number; done?: boolean }[] }[];
 }
 
 export async function learningPlan(env: Env, p: Profile, opts: { role: string; weeks: number; hours: number; gaps: string[]; cert?: string }) {

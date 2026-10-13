@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Award, BookOpen, Check, ExternalLink, FileText, Hammer, Briefcase, PlayCircle, RefreshCw, Route } from 'lucide-react';
 import { api } from '../lib/api';
@@ -6,13 +6,32 @@ import { useApi } from '../lib/hooks';
 import { resourcesFor } from '../lib/resources';
 import { Card, Field, Notice, PageHead, Score, Spinner, Tag } from '../components/ui';
 
-interface Task { title: string; kind: string; resource: string; query?: string; minutes: number; done?: boolean }
+interface Link { label: string; title: string; url: string; kind: string; meta?: string }
+interface Task { title: string; kind: string; resource: string; query?: string; links?: Link[]; minutes: number; done?: boolean }
 interface Plan { id: string; role: string; created_at: string; content: { summary: string; role: string; certification?: { name: string; why: string }; weeks: { week: number; theme: string; tasks: Task[] }[] } }
 
 export function PlanPage() {
   const plan = useApi<Plan | null>('/plan');
   const [qs0] = useSearchParams();
   const [editing, setEditing] = useState(!!qs0.get('role'));
+  const [finding, setFinding] = useState(false);
+  const missing = !!plan.data?.content.weeks.some(w => w.tasks.some(t => !t.links));
+  useEffect(() => {
+    if (!missing || finding || !plan.data) return;
+    let stop = false; setFinding(true);
+    (async () => {
+      for (let i = 0; i < 10 && !stop; i++) {
+        try {
+          const r = await api<{ content: Plan['content']; remaining: number }>('/plan/resources', { body: {} });
+          plan.setData(d => d ? { ...d, content: r.content } : d);
+          if (!r.remaining) break;
+        } catch { break; }
+      }
+      setFinding(false);
+    })();
+    return () => { stop = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan.data?.id, missing]);
 
   if (plan.loading && !plan.data) return <div className="page"><Spinner label="Loading your plan" /></div>;
   const p = plan.data;
@@ -50,7 +69,12 @@ export function PlanPage() {
                   <div key={ti} className={`task ${t.done ? 'done' : ''}`}>
                     <button className="task__box" aria-label={t.done ? 'Mark not done' : 'Mark done'} onClick={() => toggle(wi, ti, !t.done)}><Check size={14} strokeWidth={3.5} /></button>
                     <span><span className="task__t">{t.title}</span><span className="task__r">{t.resource} · {t.minutes} min</span>
-                      <span className="task__links">{resourcesFor(t, p.role).map(r => { const I = { course: BookOpen, video: PlayCircle, docs: FileText, practice: Hammer, jobs: Briefcase }[r.kind]; return <a key={r.label} href={r.url} target="_blank" rel="noreferrer"><I size={13} /> {r.label} <ExternalLink size={11} /></a>; })}</span></span>
+                      {t.links?.length ? (
+                        <span className="task__res">{t.links.map(r => { const I = ({ course: BookOpen, video: PlayCircle, docs: FileText, practice: Hammer, jobs: Briefcase } as Record<string, typeof BookOpen>)[r.kind] ?? BookOpen; return <a key={r.url} href={r.url} target="_blank" rel="noreferrer" className={`res res--${r.kind}`}><I size={16} /><span><b>{r.title}</b>{r.meta && <small>{r.meta}</small>}</span><ExternalLink size={13} /></a>; })}</span>
+                      ) : t.links ? (
+                        <span className="task__links">{resourcesFor(t, p.role).map(r => <a key={r.label} href={r.url} target="_blank" rel="noreferrer">{r.label} <ExternalLink size={11} /></a>)}</span>
+                      ) : <span className="task__finding muted small">Finding a video and a course…</span>}
+                    </span>
                     <span className={`task__k k-${t.kind}`}>{t.kind}</span>
                   </div>
                 ))}

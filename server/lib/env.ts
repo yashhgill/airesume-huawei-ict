@@ -12,6 +12,7 @@ export interface Env {
   ADMIN_EMAILS?: string;
   LINKEDIN_CLIENT_ID?: string;     // optional: Sign in with LinkedIn (OpenID Connect)
   LINKEDIN_CLIENT_SECRET?: string;      // comma-separated emails auto-promoted to admin
+  YOUTUBE_API_KEY?: string;  // optional: exact YouTube videos via the Data API (falls back to the public results page)
   APP_RUNTIME?: string;       // 'cloudflare' | 'huawei-ecs'
 }
 

@@ -260,3 +260,12 @@ test('admin can change roles and delete users, but not themselves or the last ad
   assert.equal((await call('DELETE', `/admin/users/${stu.user.id}`, undefined, adm.token)).status, 200);
   assert.equal((await call('POST', '/auth/login', { email: 'kid@x.my', password: 'password1' })).status, 401);
 });
+
+test('learning plan tasks get exact resources', async () => {
+  await call('POST', '/plan', { role: 'Cloud Engineer', weeks: 2, hours: 6 });
+  const r = await call('POST', '/plan/resources', {});
+  assert.equal(r.status, 200);
+  const t = r.body.content.weeks[0].tasks[0];
+  assert.ok(t.links.length >= 2);
+  assert.match(t.links[0].url, /youtube\.com\/watch\?v=/);
+});
