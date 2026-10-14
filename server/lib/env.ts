@@ -13,6 +13,9 @@ export interface Env {
   LINKEDIN_CLIENT_ID?: string;     // optional: Sign in with LinkedIn (OpenID Connect)
   LINKEDIN_CLIENT_SECRET?: string;      // comma-separated emails auto-promoted to admin
   YOUTUBE_API_KEY?: string;  // optional: exact YouTube videos via the Data API (falls back to the public results page)
+  SUPABASE_URL?: string;     // optional: use Supabase Postgres instead of D1
+  SUPABASE_KEY?: string;     // publishable/anon key (calls are gated by PF_DB_SECRET)
+  PF_DB_SECRET?: string;     // shared secret checked by pf_exec / pf_batch
   APP_RUNTIME?: string;       // 'cloudflare' | 'huawei-ecs'
 }
 

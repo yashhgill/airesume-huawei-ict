@@ -13,9 +13,27 @@ import { SqliteD1 } from '../server/lib/sqlite-d1';
 import { quickMatch } from '../server/lib/text';
 import type { Env } from '../server/lib/env';
 
-const db = new SqliteD1(join(mkdtempSync(join(tmpdir(), 'airesume-')), 'test.db'));
-db.migrate(resolve('migrations'));
-const env: Env = { DB: db as unknown as D1Database, JWT_SECRET: 'test', LLM_PROVIDER: 'mock', ADMIN_EMAILS: 'admin@test.my' };
+// PF_TEST_PG=postgres://... runs the same suite against Postgres through the Supabase adapter
+async function makeDb(): Promise<D1Database> {
+  if (process.env.PF_TEST_PG) {
+    const { default: pg } = await import('pg');
+    const { SupabaseD1 } = await import('../server/lib/supabase-d1');
+    const pool = new pg.Pool({ connectionString: process.env.PF_TEST_PG });
+    await pool.query("INSERT INTO pf_secret (id,secret) VALUES (1,'t') ON CONFLICT (id) DO UPDATE SET secret='t'");
+    const caller = async (fn: string, body: Record<string, unknown>) => {
+      try {
+        const r = fn === 'pf_exec' ? await pool.query('SELECT pf_exec($1,$2) j', [body.secret, body.q]) : await pool.query('SELECT pf_batch($1,$2) j', [body.secret, body.qs]);
+        return r.rows[0].j;
+      } catch (e) { throw new Error(`DB: ${(e as Error).message}`); }
+    };
+    return new SupabaseD1(caller, 't') as unknown as D1Database;
+  }
+  const d = new SqliteD1(join(mkdtempSync(join(tmpdir(), 'airesume-')), 'test.db'));
+  d.migrate(resolve('migrations'));
+  return d as unknown as D1Database;
+}
+const db = await makeDb();
+const env: Env = { DB: db, JWT_SECRET: 'test', LLM_PROVIDER: 'mock', ADMIN_EMAILS: 'admin@test.my' };
 
 // Stub outbound job APIs
 const realFetch = globalThis.fetch;

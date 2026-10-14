@@ -101,6 +101,6 @@ export async function resolveCached(env: Env, t: TaskIn, role: string): Promise<
   const hit = await env.DB.prepare("SELECT links FROM resource_cache WHERE key=? AND created_at > datetime('now','-30 day')").bind(key).first<string>('links').catch(() => null);
   if (hit) return JSON.parse(hit);
   const links = await resolveTask(env, t, role);
-  if (links.some(l => l.kind === 'video' || l.kind === 'course')) await env.DB.prepare('INSERT OR REPLACE INTO resource_cache (key,links) VALUES (?,?)').bind(key, JSON.stringify(links)).run().catch(() => {});
+  if (links.some(l => l.kind === 'video' || l.kind === 'course')) await env.DB.prepare("INSERT INTO resource_cache (key,links) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET links=excluded.links, created_at=datetime('now')").bind(key, JSON.stringify(links)).run().catch(() => {});
   return links;
 }

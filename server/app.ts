@@ -892,9 +892,9 @@ app.get('/admin/stats', async c => {
     one("SELECT COUNT(*) n FROM activity WHERE action LIKE 'ai.%'"), one("SELECT COUNT(*) n FROM activity WHERE action LIKE 'ai.%' AND ok=0"),
     one("SELECT CAST(AVG(ms) AS INTEGER) n FROM activity WHERE action LIKE 'ai.%' AND ok=1"), one('SELECT CAST(AVG(ats_score) AS INTEGER) n FROM resumes WHERE ats_score IS NOT NULL'),
   ]);
-  const daily = await db.prepare("SELECT substr(created_at,1,10) day, COUNT(*) n FROM activity WHERE created_at >= datetime('now','-13 days') GROUP BY day ORDER BY day").all();
+  const daily = await db.prepare("SELECT substr(created_at,1,10) AS day, COUNT(*) n FROM activity WHERE created_at >= datetime('now','-13 days') GROUP BY day ORDER BY day").all();
   const byAction = await db.prepare("SELECT action, COUNT(*) n, SUM(CASE WHEN ok=0 THEN 1 ELSE 0 END) fails, CAST(AVG(ms) AS INTEGER) ms FROM activity GROUP BY action ORDER BY n DESC LIMIT 12").all();
-  const topSkills = await db.prepare('SELECT name, COUNT(*) n FROM skills GROUP BY lower(name) ORDER BY n DESC LIMIT 10').all();
+  const topSkills = await db.prepare('SELECT MIN(name) name, COUNT(*) n FROM skills GROUP BY lower(name) ORDER BY n DESC LIMIT 10').all();
   return c.json({ users, resumes, saved, aiCalls, aiFails, avgMs, avgAts, daily: daily.results, byAction: byAction.results, topSkills: topSkills.results });
 });
 
