@@ -38,6 +38,9 @@ app.onError((err, c) => {
   if (err instanceof HTTPException) return c.json({ error: err.message }, err.status);
   if (err instanceof LlmError) return c.json({ error: err.message }, err.status as 502);
   console.error(err);
+  const m = String((err as Error)?.message ?? '');
+  // Surface database limit/outage errors so they can be diagnosed from the browser (no user data in these messages)
+  if (/D1_|SQLITE|exceeded|limit|no such (table|column)/i.test(m)) return c.json({ error: 'Something went wrong on our side.', detail: m.slice(0, 300) }, 500);
   return c.json({ error: 'Something went wrong on our side.' }, 500);
 });
 
