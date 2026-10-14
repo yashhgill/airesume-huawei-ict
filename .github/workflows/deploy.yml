@@ -56,10 +56,9 @@ jobs:
           LINKEDIN_CLIENT_ID: ${{ secrets.LINKEDIN_CLIENT_ID }}
           LINKEDIN_CLIENT_SECRET: ${{ secrets.LINKEDIN_CLIENT_SECRET }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           PF_DB_SECRET: ${{ secrets.PF_DB_SECRET }}
         run: |
-          for k in JWT_SECRET GROQ_API_KEY RAPIDAPI_KEY ADMIN_EMAILS LINKEDIN_CLIENT_ID LINKEDIN_CLIENT_SECRET YOUTUBE_API_KEY SUPABASE_KEY PF_DB_SECRET; do
+          for k in JWT_SECRET GROQ_API_KEY RAPIDAPI_KEY ADMIN_EMAILS LINKEDIN_CLIENT_ID LINKEDIN_CLIENT_SECRET YOUTUBE_API_KEY PF_DB_SECRET; do
             v="${!k}"; [ -n "$v" ] && printf '%s' "$v" | npx wrangler secret put "$k" || echo "skip $k (not set)"
           done
       - name: Smoke test

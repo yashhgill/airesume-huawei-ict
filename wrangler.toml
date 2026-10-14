@@ -18,6 +18,7 @@ migrations_dir = "migrations"
 
 [vars]
 SUPABASE_URL = "https://kpezyztbqstilpgishjd.supabase.co"
+SUPABASE_KEY = "sb_publishable__b8CrzRqTM95cEA2jbIKIw_XJrkY0_i" # publishable key, safe to commit
 APP_RUNTIME = "cloudflare"
 GROQ_MODEL = "openai/gpt-oss-120b"
 
