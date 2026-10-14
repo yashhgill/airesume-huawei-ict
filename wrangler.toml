@@ -17,6 +17,7 @@ database_id = "00000000-0000-0000-0000-000000000000"
 migrations_dir = "migrations"
 
 [vars]
+SUPABASE_URL = "https://kpezyztbqstilpgishjd.supabase.co"
 APP_RUNTIME = "cloudflare"
 GROQ_MODEL = "openai/gpt-oss-120b"
 

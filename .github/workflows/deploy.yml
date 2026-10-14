@@ -44,6 +44,7 @@ jobs:
           echo "D1 id: $ID"
           sed -i "s/00000000-0000-0000-0000-000000000000/$ID/" wrangler.toml
       - run: npx wrangler d1 migrations apply airesume --remote
+        continue-on-error: true
       - run: npm run build:web
       - run: npx wrangler deploy
       - name: Push secrets to the Worker
@@ -55,8 +56,10 @@ jobs:
           LINKEDIN_CLIENT_ID: ${{ secrets.LINKEDIN_CLIENT_ID }}
           LINKEDIN_CLIENT_SECRET: ${{ secrets.LINKEDIN_CLIENT_SECRET }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          PF_DB_SECRET: ${{ secrets.PF_DB_SECRET }}
         run: |
-          for k in JWT_SECRET GROQ_API_KEY RAPIDAPI_KEY ADMIN_EMAILS LINKEDIN_CLIENT_ID LINKEDIN_CLIENT_SECRET YOUTUBE_API_KEY; do
+          for k in JWT_SECRET GROQ_API_KEY RAPIDAPI_KEY ADMIN_EMAILS LINKEDIN_CLIENT_ID LINKEDIN_CLIENT_SECRET YOUTUBE_API_KEY SUPABASE_KEY PF_DB_SECRET; do
             v="${!k}"; [ -n "$v" ] && printf '%s' "$v" | npx wrangler secret put "$k" || echo "skip $k (not set)"
           done
       - name: Smoke test
