@@ -22,7 +22,7 @@ const rpc = async (fn, body) => {
 await rpc('pf_exec', { secret: PF_DB_SECRET, q: `TRUNCATE ${tables.map(t => `"${t}"`).join(', ')} RESTART IDENTITY CASCADE` });
 for (let i = 0; i < inserts.length; i += 200) {
   const chunk = inserts.slice(i, i + 200).map(s => `${s} ON CONFLICT DO NOTHING`);
-  await rpc('pf_batch', { secret: PF_DB_SECRET, qs: ['SET LOCAL session_replication_role = replica', ...chunk] }).catch(async e => {
+  await rpc('pf_batch', { secret: PF_DB_SECRET, qs: chunk }).catch(async e => {
     // fall back to one at a time to report the bad row
     for (const s of chunk) await rpc('pf_exec', { secret: PF_DB_SECRET, q: s }).catch(err => console.error('row failed:', s.slice(0, 160), String(err).slice(0, 200)));
     if (!String(e).includes('session_replication_role')) console.error(String(e).slice(0, 200));
