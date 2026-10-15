@@ -11,7 +11,8 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - run: npm ci
-      - run: npx wrangler d1 export airesume --remote --no-schema --output data.sql
+      - run: |
+          npx wrangler d1 export airesume --remote --no-schema --output data.sql > out.txt 2>&1 || { echo "::error::$(tr '\n' ' ' < out.txt | tail -c 900)"; exit 1; }
       - run: node scripts/d1-to-supabase.mjs data.sql
         env:
           SUPABASE_URL: https://kpezyztbqstilpgishjd.supabase.co
