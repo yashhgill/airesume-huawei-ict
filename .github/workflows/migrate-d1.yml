@@ -12,6 +12,7 @@ jobs:
         with: { node-version: 22 }
       - run: npm ci
       - run: |
+          ID=$(npx wrangler d1 list --json | jq -r '.[] | select(.name=="airesume") | .uuid'); sed -i "s/00000000-0000-0000-0000-000000000000/$ID/" wrangler.toml
           npx wrangler d1 export airesume --remote --no-schema --output data.sql > out.txt 2>&1 || { echo "::error::$(tr '\n' ' ' < out.txt | tail -c 900)"; exit 1; }
       - run: node scripts/d1-to-supabase.mjs data.sql
         env:
