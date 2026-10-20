@@ -2,6 +2,8 @@
  *  on the Huawei ECS they come from process.env and the node:sqlite adapter. */
 export interface Env {
   DB: D1Database;
+  RESEND_API_KEY?: string;
+  MAIL_FROM?: string;
   ASSETS?: Fetcher;
   JWT_SECRET?: string;
   GROQ_API_KEY?: string;

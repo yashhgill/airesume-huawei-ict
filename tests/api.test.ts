@@ -287,3 +287,19 @@ test('learning plan tasks get exact resources', async () => {
   assert.ok(t.links.length >= 2);
   assert.match(t.links[0].url, /youtube\.com\/watch\?v=/);
 });
+
+test('forgot / reset password', async () => {
+  const email = `fp${Date.now()}@x.my`;
+  await call('POST', '/auth/register', { name: 'FP', email, password: 'password1' }, '');
+  assert.equal((await call('POST', '/auth/forgot', { email }, '')).status, 200);
+  assert.equal((await call('POST', '/auth/forgot', { email: 'nobody@x.my' }, '')).status, 200);
+  const adm = (await call('POST', '/auth/login', { email: 'admin@test.my', password: 'password123' }, '')).body.token;
+  const u = (await call('GET', '/admin/users', undefined, adm)).body.find((x: { email: string }) => x.email === email);
+  assert.ok(u.reset_asked);
+  const url: string = (await call('POST', `/admin/users/${u.id}/reset-link`, undefined, adm)).body.url;
+  const t = url.split('#t=')[1];
+  assert.equal((await call('POST', '/auth/reset', { token: t, password: 'newpass12' }, '')).status, 200);
+  assert.equal((await call('POST', '/auth/reset', { token: t, password: 'again1234' }, '')).status, 401);
+  assert.equal((await call('POST', '/auth/login', { email, password: 'newpass12' }, '')).status, 200);
+  assert.equal((await call('GET', '/admin/users', undefined, adm)).body.find((x: { email: string }) => x.email === email).reset_asked, null);
+});

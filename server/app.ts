@@ -81,6 +81,47 @@ app.post('/auth/login', async c => {
   return c.json({ token, user: { id: row!.id, name: row!.name, email, role }, mustChangePassword: !!row!.must_change_password });
 });
 
+// ── Forgot password ─────────────────────────────────────────────────────────
+// A reset link is a 1-hour signed token tied to the current password hash, so it
+// stops working once used. It is emailed when RESEND_API_KEY is set; otherwise the
+// request shows up for admins, who can copy a link from Admin → Users.
+async function resetUrl(c: C, u: { id: string; password_hash: string }) {
+  const t = await signJwt({ k: 'pwr', sub: u.id, v: u.password_hash.slice(-16) }, secret(c.env), 3600);
+  return `${new URL(c.req.url).origin}/reset#t=${t}`;
+}
+
+app.post('/auth/forgot', async c => {
+  const b = await c.req.json().catch(() => ({}));
+  const email = str(b.email, 160).toLowerCase();
+  const u = email ? await c.env.DB.prepare('SELECT id,name,email,password_hash FROM users WHERE email=?').bind(email).first<{ id: string; name: string; email: string; password_hash: string }>() : null;
+  let emailed = false;
+  if (u) {
+    if (c.env.RESEND_API_KEY) {
+      const url = await resetUrl(c, u);
+      const r = await fetch('https://api.resend.com/emails', {
+        method: 'POST', headers: { authorization: `Bearer ${c.env.RESEND_API_KEY}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ from: c.env.MAIL_FROM || 'PathForward <onboarding@resend.dev>', to: u.email, subject: 'Reset your PathForward password',
+          html: `<p>Hi ${u.name.replace(/[<>&]/g, '')},</p><p>Someone asked to reset your PathForward password. The link works for 1 hour:</p><p><a href="${url}">Choose a new password</a></p><p>If this was not you, ignore this email.</p>` }),
+      }).catch(() => null);
+      emailed = !!r?.ok;
+    }
+    await c.env.DB.prepare('INSERT INTO activity (user_id,action,detail) VALUES (?,?,?)').bind(u.id, 'password.forgot', emailed ? 'emailed' : 'waiting for admin').run().catch(() => {});
+  }
+  // Same answer whether or not the account exists
+  return c.json({ ok: true, emailed: !!c.env.RESEND_API_KEY });
+});
+
+app.post('/auth/reset', async c => {
+  const b = await c.req.json().catch(() => ({}));
+  const password = typeof b.password === 'string' ? b.password : '';
+  if (password.length < 8) bad('Password must be at least 8 characters.');
+  const t = await verifyJwt<{ k: string; sub: string; v: string }>(String(b.token ?? ''), secret(c.env));
+  const u = t?.k === 'pwr' ? await c.env.DB.prepare('SELECT id,password_hash FROM users WHERE id=?').bind(t.sub).first<{ id: string; password_hash: string }>() : null;
+  if (!u || u.password_hash.slice(-16) !== t!.v) bad('This reset link has expired or was already used. Ask for a new one.', 401);
+  await c.env.DB.prepare('UPDATE users SET password_hash=?, must_change_password=0 WHERE id=?').bind(await hashPassword(password), u!.id).run();
+  await c.env.DB.prepare('INSERT INTO activity (user_id,action) VALUES (?,?)').bind(u!.id, 'password.reset').run();
+  return c.json({ ok: true });
+});
 
 // ── Sign in with LinkedIn (OpenID Connect) ─────────────────────────────────
 // LinkedIn only shares name, email and photo with apps outside its partner
@@ -899,7 +940,7 @@ app.get('/admin/stats', async c => {
 });
 
 app.get('/admin/users', async c => {
-  const r = await c.env.DB.prepare('SELECT u.id,u.name,u.email,u.role,u.created_at,(SELECT COUNT(*) FROM resumes r WHERE r.user_id=u.id) resumes,(SELECT COUNT(*) FROM skills s WHERE s.user_id=u.id) skills FROM users u ORDER BY u.created_at DESC LIMIT 200').all();
+  const r = await c.env.DB.prepare('SELECT u.id,u.name,u.email,u.role,u.created_at,(SELECT MAX(a.created_at) FROM activity a WHERE a.user_id=u.id AND a.action=\'password.forgot\' AND a.created_at > COALESCE((SELECT MAX(b.created_at) FROM activity b WHERE b.user_id=u.id AND b.action=\'password.reset\'),\'0\')) reset_asked,(SELECT COUNT(*) FROM resumes r WHERE r.user_id=u.id) resumes,(SELECT COUNT(*) FROM skills s WHERE s.user_id=u.id) skills FROM users u ORDER BY u.created_at DESC LIMIT 200').all();
   return c.json(r.results);
 });
 
@@ -916,6 +957,13 @@ app.put('/admin/users/:id/role', async c => {
   await c.env.DB.prepare('UPDATE users SET role=? WHERE id=?').bind(role, id).run();
   await log(c, 'admin.role', `${cur!.email}: ${cur!.role} → ${role}`);
   return c.json({ ok: true, note: 'They need to sign out and in again for the new role to apply.' });
+});
+
+app.post('/admin/users/:id/reset-link', async c => {
+  const u = await c.env.DB.prepare('SELECT id,email,password_hash FROM users WHERE id=?').bind(c.req.param('id')).first<{ id: string; email: string; password_hash: string }>();
+  if (!u) bad('User not found.', 404);
+  await log(c, 'admin.reset_link', u!.email);
+  return c.json({ url: await resetUrl(c, u!) });
 });
 
 app.delete('/admin/users/:id', async c => {

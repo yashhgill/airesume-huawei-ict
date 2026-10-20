@@ -35,8 +35,9 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
         <p className="muted">{mode === 'login' ? 'Sign in to your competency map and resumes.' : 'It takes two minutes to map your subjects to skills.'}</p>
         {mode === 'register' && <Field label="Full name"><input value={name} onChange={e => setName(e.target.value)} autoComplete="name" required /></Field>}
         <Field label="Email"><input type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" required /></Field>
-        <Field label="Password" hint={mode === 'register' ? 'At least 8 characters.' : undefined}><input type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength={8} required /></Field>
+        <Field label="Password" hint={mode === 'register' ? 'At least 8 characters.' : <Link to={`/forgot${email ? `?email=${encodeURIComponent(email)}` : ''}`}>Forgot password?</Link>}><input type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength={8} required /></Field>
         {li && <><a className="btn btn--linkedin btn--wide" href="/api/auth/linkedin"><Linkedin size={17} /> Continue with LinkedIn</a><div className="or"><span>or with email</span></div></>}
+        {mode === 'login' && new URLSearchParams(location.search).get('reset') && !error && <p className="small" style={{ color: 'var(--ok, #2e7d32)' }}>Password changed. Sign in with your new password.</p>}
         <Notice>{error}</Notice>
         <button className="btn btn--primary btn--wide" disabled={busy}>{busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}</button>
         <p className="muted small center">{mode === 'login' ? <>New here? <Link to="/register">Create an account</Link></> : <>Already registered? <Link to="/login">Sign in</Link></>}</p>
@@ -126,6 +127,64 @@ export function SetPassword() {
         <Field label="Repeat it"><input type="password" value={pw2} onChange={e => setPw2(e.target.value)} minLength={8} required autoComplete="new-password" /></Field>
         <Notice>{err}</Notice>
         <button className="btn btn--primary btn--wide">Save and continue</button>
+      </form>
+    </div>
+  );
+}
+
+/** Ask for a reset link. */
+export function ForgotPassword() {
+  const [email, setEmail] = useState(() => new URLSearchParams(location.search).get('email') ?? '');
+  const [done, setDone] = useState<null | boolean>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const send = async (e: React.FormEvent) => {
+    e.preventDefault(); setBusy(true); setErr('');
+    try { const r = await api<{ emailed: boolean }>('/auth/forgot', { body: { email } }); setDone(r.emailed); } catch (x) { setErr((x as Error).message); } finally { setBusy(false); }
+  };
+  return (
+    <div className="auth">
+      <form className="auth__card" onSubmit={send}>
+        <Brand />
+        <h1>Forgot your password?</h1>
+        {done === null ? <>
+          <p className="muted">Enter the email you sign in with and we'll get you a link to choose a new password.</p>
+          <Field label="Email"><input type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" required /></Field>
+          <Notice>{err}</Notice>
+          <button className="btn btn--primary btn--wide" disabled={busy}>{busy ? 'Sending…' : 'Send reset link'}</button>
+        </> : done ? <p>If an account exists for <b>{email}</b>, a reset link is on its way. It works for 1 hour. Check your spam folder too.</p>
+          : <p>Request received. If an account exists for <b>{email}</b>, a PathForward admin will send you a reset link. Contact your university's PathForward admin if it's urgent.</p>}
+        <p className="muted small center"><Link to="/login">Back to sign in</Link></p>
+      </form>
+    </div>
+  );
+}
+
+/** Opened from a reset link: /reset#t=… */
+export function ResetPassword() {
+  const token = new URLSearchParams(location.hash.slice(1)).get('t') ?? '';
+  const nav = useNavigate();
+  const [pw, setPw] = useState('');
+  const [pw2, setPw2] = useState('');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault(); setErr('');
+    if (pw !== pw2) { setErr('The passwords do not match.'); return; }
+    setBusy(true);
+    try { await api('/auth/reset', { body: { token, password: pw } }); nav('/login?reset=1'); } catch (x) { setErr((x as Error).message); } finally { setBusy(false); }
+  };
+  return (
+    <div className="auth">
+      <form className="auth__card" onSubmit={save}>
+        <Brand />
+        <h1>Choose a new password</h1>
+        {!token ? <Notice>This link is incomplete. Open it again from your email, or <Link to="/forgot">ask for a new one</Link>.</Notice> : <>
+          <Field label="New password" hint="At least 8 characters."><input type="password" value={pw} onChange={e => setPw(e.target.value)} minLength={8} required autoComplete="new-password" /></Field>
+          <Field label="Repeat it"><input type="password" value={pw2} onChange={e => setPw2(e.target.value)} minLength={8} required autoComplete="new-password" /></Field>
+          <Notice>{err}</Notice>
+          <button className="btn btn--primary btn--wide" disabled={busy}>{busy ? 'Saving…' : 'Save new password'}</button>
+        </>}
       </form>
     </div>
   );

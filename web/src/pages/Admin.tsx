@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Check, Copy, Pencil, Plus, Trash2, UserPlus } from 'lucide-react';
+import { Check, Copy, Pencil, Plus, Trash2, KeyRound, UserPlus } from 'lucide-react';
 import { api } from '../lib/api';
 import { useApi } from '../lib/hooks';
 import { useAuth } from '../lib/auth';
@@ -116,7 +116,7 @@ function SubjectForm({ s, pid, plos, onClose, onSaved }: { s: Partial<Subj>; pid
 
 function Users() {
   const { user } = useAuth();
-  const list = useApi<{ id: string; name: string; email: string; role: string; created_at: string; resumes: number; skills: number }[]>('/admin/users');
+  const list = useApi<{ id: string; name: string; email: string; role: string; created_at: string; resumes: number; skills: number; reset_asked: string | null }[]>('/admin/users');
   const [q, setQ] = useState('');
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
   const [del, setDel] = useState<{ id: string; name: string; email: string } | null>(null);
@@ -128,6 +128,12 @@ function Users() {
     try { await api(`/admin/users/${u.id}/role`, { method: 'PUT', body: { role } }); setMsg({ tone: 'ok', text: `${u.email} is now ${role === 'admin' ? 'an admin' : `a ${role}`}. They need to sign out and back in.` }); }
     catch (e) { setMsg({ tone: 'error', text: (e as Error).message }); }
     list.reload();
+  };
+  const [link, setLink] = useState<{ email: string; url: string } | null>(null);
+  const resetLink = async (u: { id: string; email: string }) => {
+    setMsg(null);
+    try { const r = await api<{ url: string }>(`/admin/users/${u.id}/reset-link`, { method: 'POST' }); setLink({ email: u.email, url: r.url }); }
+    catch (e) { setMsg({ tone: 'error', text: (e as Error).message }); }
   };
   const remove = async () => {
     if (!del) return; setBusy(true);
@@ -146,12 +152,19 @@ function Users() {
         <tbody>{rows.map(u => {
           const me = u.id === user?.id;
           return (
-            <tr key={u.id}><td>{u.name}{me && <Tag tone="accent">You</Tag>}</td><td>{u.email}</td><td>{u.created_at.slice(0, 10)}</td><td>{u.skills}</td><td>{u.resumes}</td>
+            <tr key={u.id}><td>{u.name}{me && <Tag tone="accent">You</Tag>}{u.reset_asked && <Tag tone="warn">Asked for password reset</Tag>}</td><td>{u.email}</td><td>{u.created_at.slice(0, 10)}</td><td>{u.skills}</td><td>{u.resumes}</td>
               <td><select value={u.role} disabled={me} title={me ? 'You cannot change your own role' : undefined} aria-label={`Role for ${u.email}`} onChange={e => setRole(u, e.target.value)}>{['student', 'staff', 'recruiter', 'admin'].filter(r => r !== 'staff' || u.role === 'staff').map(r => <option key={r} value={r}>{r}</option>)}</select></td>
-              <td>{!me && <button className="icon-btn danger" aria-label={`Delete ${u.email}`} title="Delete user" onClick={() => setDel(u)}><Trash2 size={16} /></button>}</td></tr>
+              <td className="nowrap"><button className="icon-btn" aria-label={`Password reset link for ${u.email}`} title="Password reset link" onClick={() => resetLink(u)}><KeyRound size={16} /></button>{!me && <button className="icon-btn danger" aria-label={`Delete ${u.email}`} title="Delete user" onClick={() => setDel(u)}><Trash2 size={16} /></button>}</td></tr>
           );
         })}</tbody>
       </table></div>
+      {link && (
+        <Modal title="Password reset link" onClose={() => setLink(null)}>
+          <p>Send this link to <b>{link.email}</b> (WhatsApp or email). It works once, for 1 hour.</p>
+          <input readOnly value={link.url} onFocus={e => e.currentTarget.select()} aria-label="Reset link" />
+          <div className="row end"><button className="btn btn--primary" onClick={() => { navigator.clipboard?.writeText(link.url); setMsg({ tone: 'ok', text: `Reset link for ${link.email} copied.` }); setLink(null); }}>Copy link</button></div>
+        </Modal>
+      )}
       {del && (
         <Modal title="Delete this user?" onClose={() => setDel(null)}>
           <p><b>{del.name}</b> ({del.email}) and everything they created will be deleted for good: profile, subjects, skills, resumes, coach chats, plans and shortlists.</p>

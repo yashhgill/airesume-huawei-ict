@@ -3,7 +3,7 @@ import { Navigate, NavLink, Outlet, Route, Routes, useLocation, useNavigate } fr
 import { BriefcaseBusiness, ClipboardCheck, Compass, FileText, GraduationCap, Bookmark, Building2, Kanban, LayoutGrid, LogOut, X, Search, MessageCircle, Mic, Route as RouteIcon, ShieldCheck, Sun, UserRound } from 'lucide-react';
 import { useAuth } from './lib/auth';
 import { Landing } from './pages/Landing';
-import { AuthPage, LinkedInDone, SetPassword } from './pages/Auth';
+import { AuthPage, ForgotPassword, LinkedInDone, ResetPassword, SetPassword } from './pages/Auth';
 import { CandidatePage, ShortlistPage, TalentPage } from './pages/Talent';
 import { ThemeToggle } from './components/ThemeToggle';
 import { ManageFaculty, ManageHome, ManageProgramme, ManageUniversity } from './pages/Manage';
@@ -31,6 +31,8 @@ export default function App() {
       <Route path="/login" element={<AuthPage mode="login" />} />
       <Route path="/register" element={<AuthPage mode="register" />} />
       <Route path="/auth/linkedin" element={<LinkedInDone />} />
+      <Route path="/forgot" element={<ForgotPassword />} />
+      <Route path="/reset" element={<ResetPassword />} />
       <Route path="/print/resume/:id" element={<PrintResume />} />
       <Route path="/p/:slug" element={<PublicProfile />} />
       <Route path="/app" element={<Protected />}>
