@@ -303,3 +303,12 @@ test('forgot / reset password', async () => {
   assert.equal((await call('POST', '/auth/login', { email, password: 'newpass12' }, '')).status, 200);
   assert.equal((await call('GET', '/admin/users', undefined, adm)).body.find((x: { email: string }) => x.email === email).reset_asked, null);
 });
+
+test('admin adds a demo user with a password', async () => {
+  const adm = (await call('POST', '/auth/login', { email: 'admin@test.my', password: 'password123' }, '')).body.token;
+  assert.equal((await call('POST', '/admin/users', { name: 'Demo', email: 'demo@x.my', role: 'recruiter', password: 'demopass1' }, adm)).status, 201);
+  const l = await call('POST', '/auth/login', { email: 'demo@x.my', password: 'demopass1' }, '');
+  assert.equal(l.body.user.role, 'recruiter');
+  const n = await call('POST', '/admin/users', { name: 'Link', email: 'link@x.my', role: 'student' }, adm);
+  assert.ok(n.body.url.includes('/reset#t='));
+});

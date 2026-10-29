@@ -959,6 +959,19 @@ app.put('/admin/users/:id/role', async c => {
   return c.json({ ok: true, note: 'They need to sign out and in again for the new role to apply.' });
 });
 
+app.post('/admin/users', async c => {
+  const b = await c.req.json().catch(() => ({}));
+  const name = str(b.name, 120), email = str(b.email, 160).toLowerCase(), password = typeof b.password === 'string' ? b.password : '';
+  const role = ['admin', 'recruiter', 'student'].includes(b.role) ? b.role : 'student';
+  if (!name || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) bad('Enter a name and a valid email.');
+  if (password && password.length < 8) bad('Password must be at least 8 characters.');
+  if (await c.env.DB.prepare('SELECT 1 FROM users WHERE email=?').bind(email).first()) bad('An account with this email already exists.', 409);
+  const id = newId(), hash = await hashPassword(password || crypto.randomUUID());
+  await c.env.DB.prepare('INSERT INTO users (id,name,email,password_hash,role) VALUES (?,?,?,?,?)').bind(id, name, email, hash, role).run();
+  await log(c, 'admin.add_user', `${email} (${role})`);
+  return c.json({ id, url: password ? undefined : await resetUrl(c, { id, password_hash: hash }) }, 201);
+});
+
 app.post('/admin/users/:id/reset-link', async c => {
   const u = await c.env.DB.prepare('SELECT id,email,password_hash FROM users WHERE id=?').bind(c.req.param('id')).first<{ id: string; email: string; password_hash: string }>();
   if (!u) bad('User not found.', 404);

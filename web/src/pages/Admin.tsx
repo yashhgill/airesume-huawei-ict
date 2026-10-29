@@ -121,7 +121,17 @@ function Users() {
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
   const [del, setDel] = useState<{ id: string; name: string; email: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [link, setLink] = useState<{ email: string; url: string } | null>(null);
+  const [add, setAdd] = useState<null | { name: string; email: string; role: string; password: string }>(null);
   if (!list.data) return <Spinner />;
+  const create = async (e: React.FormEvent) => {
+    e.preventDefault(); if (!add) return; setBusy(true); setMsg(null);
+    try {
+      const r = await api<{ url?: string }>('/admin/users', { body: add });
+      setAdd(null); list.reload();
+      if (r.url) setLink({ email: add.email, url: r.url }); else setMsg({ tone: 'ok', text: `Created ${add.email} (${add.role}). They can sign in now.` });
+    } catch (x) { setMsg({ tone: 'error', text: (x as Error).message }); } finally { setBusy(false); }
+  };
   const rows = list.data.filter(u => !q || `${u.name} ${u.email} ${u.role}`.toLowerCase().includes(q.toLowerCase()));
   const setRole = async (u: { id: string; email: string }, role: string) => {
     setMsg(null);
@@ -129,7 +139,6 @@ function Users() {
     catch (e) { setMsg({ tone: 'error', text: (e as Error).message }); }
     list.reload();
   };
-  const [link, setLink] = useState<{ email: string; url: string } | null>(null);
   const resetLink = async (u: { id: string; email: string }) => {
     setMsg(null);
     try { const r = await api<{ url: string }>(`/admin/users/${u.id}/reset-link`, { method: 'POST' }); setLink({ email: u.email, url: r.url }); }
@@ -144,7 +153,8 @@ function Users() {
     <Card>
       <div className="row between" style={{ marginBottom: 12 }}>
         <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search name, email or role" aria-label="Search users" style={{ maxWidth: 320 }} />
-        <span className="muted small">{rows.length} of {list.data.length} users</span>
+        <div className="row" style={{ gap: 12, alignItems: 'center' }}><span className="muted small">{rows.length} of {list.data.length} users</span>
+          <button className="btn btn--primary btn--sm" onClick={() => setAdd({ name: '', email: '', role: 'student', password: '' })}><UserPlus size={15} /> Add user</button></div>
       </div>
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
       <div className="table-wrap"><table className="table">
@@ -158,6 +168,17 @@ function Users() {
           );
         })}</tbody>
       </table></div>
+      {add && (
+        <Modal title="Add a user" onClose={() => setAdd(null)}>
+          <form onSubmit={create} className="stack">
+            <Field label="Full name"><input value={add.name} onChange={e => setAdd({ ...add, name: e.target.value })} required /></Field>
+            <Field label="Email"><input type="email" value={add.email} onChange={e => setAdd({ ...add, email: e.target.value })} required /></Field>
+            <Field label="Role"><select value={add.role} onChange={e => setAdd({ ...add, role: e.target.value })}>{['student', 'recruiter', 'admin'].map(r => <option key={r}>{r}</option>)}</select></Field>
+            <Field label="Password (optional)" hint="Set one for a shared demo account. Leave empty to get a link the person uses to choose their own."><input type="text" value={add.password} onChange={e => setAdd({ ...add, password: e.target.value })} minLength={8} autoComplete="off" /></Field>
+            <div className="row end"><button type="button" className="btn btn--ghost" onClick={() => setAdd(null)}>Cancel</button><button className="btn btn--primary" disabled={busy}>{busy ? 'Creating…' : 'Create user'}</button></div>
+          </form>
+        </Modal>
+      )}
       {link && (
         <Modal title="Password reset link" onClose={() => setLink(null)}>
           <p>Send this link to <b>{link.email}</b> (WhatsApp or email). It works once, for 1 hour.</p>
