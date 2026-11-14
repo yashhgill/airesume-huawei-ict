@@ -100,7 +100,7 @@ export async function resumePdf(r: ResumeContent): Promise<Blob> {
 
 // Helvetica covers Latin-1 only: swap common typographic characters so nothing renders as garbage.
 function clean(s: string) {
-  return String(s ?? '').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-').replace(/•/g, '-').replace(/…/g, '...').replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF]/g, '');
+  return String(s ?? '').replace(/[‘’‚′]/g, "'").replace(/[“”„″]/g, '"').replace(/[\u2010-\u2015\u2212\u00AD]/g, '-').replace(/[\u00A0\u2000-\u200A\u202F\u205F]/g, ' ').replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').replace(/•/g, '-').replace(/…/g, '...').replace(/\s*[→⇒⟶]\s*/g, ' -> ').replace(/[←⇐]/g, '<-').replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF]/g, '');
 }
 
 /** Hand the file to the user in the way their device supports. */
